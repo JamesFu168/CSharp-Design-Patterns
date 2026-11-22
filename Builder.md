@@ -827,4 +827,4 @@ Vehicle Type: MotorCycle
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Abstract Factory](AbstractFactory.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Factory Method →](FactoryMethod.md) |
+| [← 上一篇：Abstract Factory](AbstractFactory.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Factory Method →](FactoryMethod.md) |

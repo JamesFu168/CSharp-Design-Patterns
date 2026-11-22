@@ -698,4 +698,4 @@ MergeSorted list
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：State](State.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Template Method →](TemplateMethod.md) |
+| [← 上一篇：State](State.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Template Method →](TemplateMethod.md) |

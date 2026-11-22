@@ -679,4 +679,4 @@ Report --
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Builder](Builder.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Prototype →](Prototype.md) |
+| [← 上一篇：Builder](Builder.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Prototype →](Prototype.md) |

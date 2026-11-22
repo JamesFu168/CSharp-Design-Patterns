@@ -546,4 +546,4 @@ Dispatch request to: ServerV
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Prototype](Prototype.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Adapter →](Adapter.md) |
+| [← 上一篇：Prototype](Prototype.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Adapter →](Adapter.md) |

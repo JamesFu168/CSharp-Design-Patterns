@@ -545,4 +545,4 @@ Shallow copy of color RGB: 128,128,211
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Factory Method](FactoryMethod.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Singleton →](Singleton.md) |
+| [← 上一篇：Factory Method](FactoryMethod.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Singleton →](Singleton.md) |

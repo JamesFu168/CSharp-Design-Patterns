@@ -673,4 +673,4 @@ Notified Berkshire of IBM's change to $120.75
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Memento](Memento.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：State →](State.md) |
+| [← 上一篇：Memento](Memento.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：State →](State.md) |

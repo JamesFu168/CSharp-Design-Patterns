@@ -768,4 +768,4 @@ Current value = 500 (following * 10)
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Chain of Responsibility](ChainOfResponsibility.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Interpreter →](Interpreter.md) |
+| [← 上一篇：Chain of Responsibility](ChainOfResponsibility.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Interpreter →](Interpreter.md) |

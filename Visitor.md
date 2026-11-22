@@ -764,4 +764,4 @@ President Eric's new vacation days: 24
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Template Method](TemplateMethod.md) | [🏠 C# Design Patterns 總覽](Index.md) | [返回 C# Design Patterns 總覽 (Index) →](Index.md) |
+| [← 上一篇：Template Method](TemplateMethod.md) | [🏠 C# Design Patterns 總覽](README.md) | [返回 C# Design Patterns 總覽 (README) →](README.md) |

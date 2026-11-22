@@ -1019,4 +1019,4 @@ Withdrew $1,100.00 ---
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Observer](Observer.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Strategy →](Strategy.md) |
+| [← 上一篇：Observer](Observer.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Strategy →](Strategy.md) |

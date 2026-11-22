@@ -606,4 +606,4 @@ Boat
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Strategy](Strategy.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Visitor →](Visitor.md) |
+| [← 上一篇：Strategy](Strategy.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Visitor →](Visitor.md) |

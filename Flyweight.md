@@ -648,4 +648,4 @@ B (pointsize 18)
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Facade](Facade.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Proxy →](Proxy.md) |
+| [← 上一篇：Facade](Facade.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Proxy →](Proxy.md) |

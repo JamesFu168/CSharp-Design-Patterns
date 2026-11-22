@@ -671,4 +671,4 @@ MCMXXVIII = 1928
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Command](Command.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Iterator →](Iterator.md) |
+| [← 上一篇：Command](Command.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Iterator →](Iterator.md) |

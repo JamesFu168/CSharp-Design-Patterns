@@ -643,4 +643,4 @@ public class Shape(string name) : IComparable<Shape>
 
 | 上一篇 | 總覽 | 下一篇 |
 | :--- | :---: | ---: |
-| [← 上一篇：Bridge](Bridge.md) | [🏠 C# Design Patterns 總覽](Index.md) | [下一篇：Decorator →](Decorator.md) |
+| [← 上一篇：Bridge](Bridge.md) | [🏠 C# Design Patterns 總覽](README.md) | [下一篇：Decorator →](Decorator.md) |
