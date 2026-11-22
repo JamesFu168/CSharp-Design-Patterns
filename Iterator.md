@@ -10,11 +10,29 @@
 
 **Iterator** Design Pattern 提供一種方法，可以循序存取聚合（Aggregate）物件中的各個元素，而無須暴露其底層的表示方式（Underlying Representation）。
 
-**Iterator** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+集合內部用什麼方式存放資料（陣列、連結串列、樹狀結構），不應該讓使用它的程式碼知道。如果呼叫端直接存取內部結構：
+
+```csharp
+// 示意：呼叫端依賴「內部是一個可以用索引存取的清單」
+for (int i = 0; i < collection.Items.Count; i += 2)
+{
+    Console.WriteLine(collection.Items[i]);
+}
+```
+
+- 集合的內部結構一旦改變，所有這樣寫的地方都會壞掉。
+- 每一種走訪方式（跳著取、反向取）都要呼叫端自己重寫一次。
+
+Iterator 提供一個統一的方式「一次給我下一個元素」，把走訪的邏輯留在集合這一邊。C# 把這個模式直接做進語言：`IEnumerable<T>`、`foreach` 與 `yield return`。
 
 ---
 
@@ -30,6 +48,8 @@
 
 參與此 Pattern 的類別與物件包括：
 
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
+
 - **Iterator** (`AbstractIterator`)
   - 定義一個用於存取及走訪（Traversing）元素的介面。
 - **ConcreteIterator** (`Iterator`)
@@ -42,7 +62,160 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Iterator](samples/Iterator)  
+> **執行方式**：`dotnet run --project samples/Iterator`
+
+**角色對照**：Aggregate = `IEnumerable<T>`；ConcreteAggregate = `ItemCollection<T>`；Iterator = `IEnumerator<T>`；ConcreteIterator = 編譯器依 `yield return` 產生的類別；Client = 最上方的程式碼。
+
+<!-- sample:Iterator/Program.cs -->
+```csharp
+// Iterator：讓呼叫端可以逐一取得集合的元素，卻不必知道集合內部怎麼存放資料。
+
+ItemCollection<string> items =
+[
+    "Item 0", "Item 1", "Item 2", "Item 3", "Item 4",
+    "Item 5", "Item 6", "Item 7", "Item 8",
+];
+
+// 實作 IEnumerable<T> 之後，foreach、LINQ、string.Join 都能直接使用
+Console.WriteLine($"All      : {string.Join(", ", items)}");
+Console.WriteLine($"Step by 2: {string.Join(", ", items.Step(2))}");
+Console.WriteLine($"Reversed : {string.Join(", ", items.Reversed())}");
+
+// yield return 是「延遲執行」：要一個才產生一個。這裡只會實際取出 2 個元素
+Console.WriteLine($"First two of step 3: {string.Join(", ", items.Step(3).Take(2))}");
+
+// 資料需要等待（網路、資料庫分頁）才能取得時，改用 IAsyncEnumerable<T> 與 await foreach
+await foreach (string[] page in items.ReadPagesAsync(pageSize: 4))
+{
+    Console.WriteLine($"Page     : {string.Join(", ", page)}");
+}
+
+// ---- Aggregate：實作 IEnumerable<T>，C# 的 foreach 就認得它 ----
+public sealed class ItemCollection<T> : IEnumerable<T>
+{
+    private readonly List<T> _items = [];
+
+    // 有 Add 方法，才能用集合運算式 [...] 來初始化
+    public void Add(T item) => _items.Add(item);
+
+    // ---- Iterator：編譯器會把 yield return 轉成記住「走到哪裡」的列舉器類別 ----
+    public IEnumerator<T> GetEnumerator()
+    {
+        foreach (T item in _items)
+        {
+            yield return item;
+        }
+    }
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+    // 同一個集合可以提供好幾種走訪方式
+    public IEnumerable<T> Step(int step)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(step, 1);
+
+        for (int i = 0; i < _items.Count; i += step)
+        {
+            yield return _items[i];
+        }
+    }
+
+    public IEnumerable<T> Reversed()
+    {
+        for (int i = _items.Count - 1; i >= 0; i--)
+        {
+            yield return _items[i];
+        }
+    }
+
+    public async IAsyncEnumerable<T[]> ReadPagesAsync(int pageSize)
+    {
+        foreach (T[] page in _items.Chunk(pageSize))
+        {
+            await Task.Delay(10);   // 模擬一次網路或資料庫往返
+            yield return page;
+        }
+    }
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Iterator -->
+```text
+All      : Item 0, Item 1, Item 2, Item 3, Item 4, Item 5, Item 6, Item 7, Item 8
+Step by 2: Item 0, Item 2, Item 4, Item 6, Item 8
+Reversed : Item 8, Item 7, Item 6, Item 5, Item 4, Item 3, Item 2, Item 1, Item 0
+First two of step 3: Item 0, Item 3
+Page     : Item 0, Item 1, Item 2, Item 3
+Page     : Item 4, Item 5, Item 6, Item 7
+Page     : Item 8
+```
+<!-- /output -->
+
+### 重點解說
+
+- **實作 `IEnumerable<T>` 就能融入整個生態**：`foreach`、LINQ、`string.Join` 都能直接使用這個集合。
+- **`yield return`**：編譯器會把含有 `yield return` 的方法轉成一個列舉器類別，自動記住「目前走到哪裡」。不需要手寫 `MoveNext` 與 `Current`。
+- **延遲執行**：`items.Step(3).Take(2)` 只會實際取出兩個元素，不會先走完整個集合。
+- **`IAsyncEnumerable<T>` 與 `await foreach`**：下一筆資料需要等待（網路、資料庫）才能取得時使用。
+- **集合運算式需要 `Add`**：類別實作 `IEnumerable<T>` 並提供 `Add` 方法，就能用 `[...]` 語法初始化。
+- **非泛型的 `GetEnumerator`**：`IEnumerable<T>` 繼承了舊的非泛型介面，所以必須多實作一個，直接轉呼叫泛型版本即可。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版 Structural 與 Real-world 手寫了 `Iterator` 類別（`First()`、`Next()`、`IsDone`、`CurrentItem`）。這是 GoF 書中的寫法，在 C# 中早已由 `IEnumerable<T>` 與 `yield return` 取代。
+- 原版 .NET Optimized 已經使用 `yield return`。本版另外補充延遲執行與 `IAsyncEnumerable<T>`。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **所有內建集合**：`List<T>`、`Dictionary<TKey, TValue>`、陣列都實作 `IEnumerable<T>`。
+- **LINQ**：`Where`、`Select`、`Take` 都是以迭代器實作，並且可以串接。
+- **`File.ReadLines(path)`**：一次讀取一行（延遲執行）；對照 `File.ReadAllLines` 會一次把整個檔案讀進記憶體。
+- **`IAsyncEnumerable<T>`**：EF Core 的 `AsAsyncEnumerable()`、gRPC 串流、分頁式 API。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 自己寫的集合或資料結構，要讓外界走訪。
+- 資料量很大或是無限序列，需要「要一個才算一個」。
+- 同一份資料要提供多種走訪方式。
+
+**不適合使用**
+
+- 內建集合已經夠用：直接回傳 `IReadOnlyList<T>` 或 `IEnumerable<T>`，不需要自己寫集合類別。
+
+在 C# 中幾乎不需要手寫 `IEnumerator<T>`，使用 `yield return` 即可。
+
+---
+
+## 練習題
+
+1. 寫一個 `IEnumerable<long> Fibonacci()`，它是一個無限序列。用 `Take(10)` 印出前 10 個數字。
+2. 呼叫 `items.Step(0)` 但不要走訪它的結果，會丟出例外嗎？為什麼？（提示：延遲執行也包含參數檢查。）
+3. 替 `ReadPagesAsync` 加上 `CancellationToken` 參數（提示：`[EnumeratorCancellation]` 屬性）。
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Iterator Pattern 如何提供一種方法來走訪（疊代，Iterate）項目集合，而無須暴露該集合的底層結構細節。
 
@@ -189,23 +362,20 @@ namespace Iterator.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Iterating over collection:
-
-  Item A
-
-  Item B
-
-  Item C
-
-  Item D
+Item A
+Item B
+Item C
+Item D
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了如何使用 Iterator Pattern 來走訪項目集合，並在每次疊代（Iteration）時跳過特定數量的項目。
 
@@ -389,27 +559,23 @@ namespace Iterator.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Iterating over collection:
-
-  Item 0
-
-  Item 2
-
-  Item 4
-
-  Item 6
-
-  Item 8
+Item 0
+Item 2
+Item 4
+Item 6
+Item 8
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors、泛型與 `record` 型別）。這是一個優雅的 C# Iterator 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors、泛型與 `record` 型別）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Iterator.NetOptimized;
@@ -518,85 +684,40 @@ public class ItemCollection<T> : IEnumerable<T>
 internal record Item (string Name);
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
-Iterating over collection:
+Iterate front to back
+Item 0
+Item 1
+Item 2
+Item 3
+Item 4
+Item 5
+Item 6
+Item 7
+Item 8
 
-    Item 0
+Iterate back to front
+Item 8
+Item 7
+Item 6
+Item 5
+Item 4
+Item 3
+Item 2
+Item 1
+Item 0
 
-    Item 2
 
-    Item 4
-
-    Item 6
-
-    Item 8
+Iterate range (1-7) in steps of 2
+Item 1
+Item 3
+Item 5
+Item 7
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **Dofactory `.NET Optimized` 已使用 `yield return`**：這點非常符合 C# 的習慣，因為 C# 編譯器會自動將 `yield return` 轉換為高效率的狀態機（State Machine）。
-- **可進一步現代化之處**：在 .NET 11 中，若走訪涉及非同步資料流（如資料庫查詢、AI Token 串流或分頁 API），C# 原生支援 **`IAsyncEnumerable<T>`（`await foreach`）**；若為同步集合，則可結合 C# 15 的 **Extension Indexers** 或集合運算式初始化。
-
-### C# 15 / .NET 11 優化重點
-
-- **集合運算式初始化（Collection Initializer / Collection Expressions）**：實作 `Add` 與 `IEnumerable<T>`，讓 `ItemCollection<T>` 可以直接用 `[new("Item 0"), ...]` 語法建立。
-- **同步 `yield return` 與非同步 `IAsyncEnumerable<T>` 概念對照**：保留零多餘配置的 `yield return` 步進過濾器。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Iterator.ModernNet11;
-
-using System.Collections;
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        // 直接使用集合運算式初始化自訂聚合物件
-        ItemCollection<Item> items =
-        [
-            new("Item 0"), new("Item 1"), new("Item 2"),
-            new("Item 3"), new("Item 4"), new("Item 5"),
-            new("Item 6"), new("Item 7"), new("Item 8")
-        ];
-
-        WriteLine("Iterate front to back (step = 2):");
-        foreach (var item in items.SkipStep(step: 2))
-        {
-            WriteLine(item.Name);
-        }
-    }
-}
-
-public readonly record struct Item(string Name);
-
-public sealed class ItemCollection<T> : IEnumerable<T>
-{
-    private readonly List<T> _items = [with(capacity: 16)];
-
-    public void Add(T item) => _items.Add(item);
-
-    public IEnumerable<T> SkipStep(int step = 1)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(step, 1);
-        for (int i = 0; i < _items.Count; i += step)
-        {
-            yield return _items[i];
-        }
-    }
-
-    public IEnumerator<T> GetEnumerator() => _items.GetEnumerator();
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-}
-```
+</details>
 
 ---
 

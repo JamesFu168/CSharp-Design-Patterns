@@ -1,0 +1,10 @@
++ Picture
+  - Red Line
+  - Blue Circle
+  + Two Circles
+    - Black Circle
+    - White Circle
+  - Green Box
+Total shapes: 5
+- Yellow Line
+Total shapes: 1

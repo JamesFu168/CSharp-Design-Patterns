@@ -1,0 +1,5 @@
+red  = Color { Red = 255, Green = 0, Blue = 0 }
+pink = Color { Red = 255, Green = 192, Blue = 203 }
+Same value: True, same instance: False
+Added a stop to the shallow copy -> the original now has 3 stops (it started with 2)
+Cleared the deep copy -> the original still has 3 stops

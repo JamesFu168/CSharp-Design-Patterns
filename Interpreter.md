@@ -10,11 +10,18 @@
 
 給定一個語言，**Interpreter** Design Pattern 會定義其文法（Grammar）的表示方式，以及一個使用該表示方式來直譯（Interpret）該語言中句子的直譯器。
 
-**Interpreter** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+要把羅馬數字（例如 `MCMXXVIII`）轉換成整數。羅馬數字有明確的文法：由千位、百位、十位、個位依序組成，每一個位數都是「9、4、5 其中之一，或是連續幾個 1」的組合，只是使用的符號不同。
+
+這個問題用一個方法也能解決。Interpreter 的想法是：**把每一條文法規則寫成一個物件**，再讓這些物件依序解讀輸入。文法有幾條規則，就有幾個運算式物件；要擴充文法時，新增或調整物件即可。
 
 ---
 
@@ -29,6 +36,8 @@
 ## 參與者 (Participants)
 
 參與此 Pattern 的類別與物件包括：
+
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
 
 - **AbstractExpression** (`Expression`)
   - 宣告一個用於執行直譯（Interpret）操作的介面。
@@ -47,7 +56,173 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Interpreter](samples/Interpreter)  
+> **執行方式**：`dotnet run --project samples/Interpreter`
+
+**角色對照**：AbstractExpression = `IExpression`；TerminalExpression = `DigitExpression`；Context = `Context`；Client = `RomanNumeral.Parse`。
+
+<!-- sample:Interpreter/Program.cs -->
+```csharp
+// Interpreter：把一個小型語言的每條文法規則寫成一個物件，再由這些物件合力解讀輸入。
+
+string[] samples = ["MCMXXVIII", "MMXXVI", "XLII"];
+
+foreach (string roman in samples)
+{
+    Console.WriteLine($"{roman} = {RomanNumeral.Parse(roman)}");
+}
+
+// ---- Context：解讀過程中共用的資料（還沒讀完的輸入、目前累計的結果） ----
+public sealed class Context(string input)
+{
+    public string Input { get; set; } = input;
+    public int Output { get; set; }
+}
+
+// ---- AbstractExpression ----
+public interface IExpression
+{
+    void Interpret(Context context);
+}
+
+// ---- TerminalExpression：解讀「一個位數」。
+// 千、百、十、個位的規則結構完全相同，只有符號與倍率不同，
+// 所以用建構函式參數表達差異，而不是寫四個幾乎一樣的子類別。
+public sealed class DigitExpression(
+    int multiplier, string one, string? four = null, string? five = null, string? nine = null) : IExpression
+{
+    public void Interpret(Context context)
+    {
+        // 9 與 4 的後面不會再接同一個位數的符號，所以解讀完就結束
+        if (TryConsume(context, nine, value: 9) || TryConsume(context, four, value: 4))
+        {
+            return;
+        }
+
+        // 5 最多出現一次，後面可以再接 0 到 3 個 1（例如 VIII = 5 + 1 + 1 + 1）
+        TryConsume(context, five, value: 5);
+
+        while (TryConsume(context, one, value: 1))
+        {
+            // 重複到開頭不再是這個符號為止
+        }
+    }
+
+    // 輸入的開頭符合 symbol 時：累加數值、把已解讀的部分從輸入移除，並回傳 true
+    private bool TryConsume(Context context, string? symbol, int value)
+    {
+        if (symbol is null || !context.Input.StartsWith(symbol, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        context.Output += value * multiplier;
+        context.Input = context.Input[symbol.Length..];
+        return true;
+    }
+}
+
+public static class RomanNumeral
+{
+    // 文法：由高位到低位依序解讀
+    private static readonly IExpression[] Grammar =
+    [
+        new DigitExpression(1000, one: "M"),
+        new DigitExpression(100, one: "C", four: "CD", five: "D", nine: "CM"),
+        new DigitExpression(10, one: "X", four: "XL", five: "L", nine: "XC"),
+        new DigitExpression(1, one: "I", four: "IV", five: "V", nine: "IX"),
+    ];
+
+    public static int Parse(string roman)
+    {
+        var context = new Context(roman);
+
+        foreach (IExpression expression in Grammar)
+        {
+            expression.Interpret(context);
+        }
+
+        // 所有規則都跑完還有剩下的字元，代表輸入不符合文法
+        if (context.Input.Length > 0)
+        {
+            throw new FormatException($"'{roman}' is not a valid Roman numeral.");
+        }
+
+        return context.Output;
+    }
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Interpreter -->
+```text
+MCMXXVIII = 1928
+MMXXVI = 2026
+XLII = 42
+```
+<!-- /output -->
+
+### 重點解說
+
+- **文法是資料**：`Grammar` 陣列由高位到低位列出四條規則，閱讀這個陣列就能看懂整個文法。
+- **每個運算式做同一件事**：檢查輸入的開頭是否符合自己的符號，符合就累加數值，並把已經解讀的部分從輸入移除。
+- **範圍運算子**：`context.Input[symbol.Length..]` 的意思是「從這個位置到結尾」。
+- **`StringComparison.Ordinal`**：比對字串時明確指定比較方式，結果才不會受到作業系統語系影響。
+- **驗證輸入**：所有規則都跑完後如果還有剩下的字元，就代表輸入不合文法，丟出 `FormatException`。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版有四個子類別（`ThousandExpression`、`HundredExpression`、`TenExpression`、`OneExpression`），各自覆寫 `One()`、`Four()`、`Five()`、`Nine()`、`Multiplier()` 回傳常數。四個類別的結構完全相同，本版合併為一個 `DigitExpression`，差異由建構函式參數表達。
+- 原版以 `" "`（一個空白）代表「千位沒有 4、5、9」。本版以 `null` 搭配具名引數表達，意圖更清楚。
+- 原版不檢查不合法的輸入。本版會丟出 `FormatException`。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **`System.Text.RegularExpressions.Regex`**：把規則運算式這種小型語言解讀成比對邏輯。
+- **`System.Linq.Expressions`**：以物件樹表示程式碼，並可用 `Compile()` 轉成可執行的委派。
+- **剖析器函式庫**：要解析真正的語言時，實務上會使用 ANTLR、Superpower、Pidgin 這類工具，而不是手寫 Interpreter。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 文法很小而且穩定，例如簡單的查詢條件、計算式、設定規則。
+
+**不適合使用**
+
+- 文法稍微複雜一點：類別數量與維護成本會快速增加。
+- 只是做格式轉換：一個方法或一張對照表更直接。
+
+這是 GoF 23 個模式中，日常開發最少直接用到的一個。認識它的價值主要在於理解「把規則表示成物件」這個想法。
+
+---
+
+## 練習題
+
+1. 目前 `Parse("IIII")` 會回傳 4。修改程式讓它丟出 `FormatException`（提示：同一個符號最多連續出現 3 次）。
+2. 寫出反向的 `ToRoman(int number)`，並用 1 到 3999 的每個數字驗證 `Parse(ToRoman(n)) == n`。
+3. 不使用 Interpreter，用一個 `Dictionary<char, int>` 與一個迴圈重寫 `Parse`。比較兩種寫法的行數與可讀性。
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Interpreter Pattern 如何利用已定義的文法，提供能夠處理已剖析陳述式（Parsed Statements）的直譯器。
 
@@ -134,26 +309,24 @@ namespace Interpreter.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Called Terminal.Interpret()
-
-  Called Nonterminal.Interpret()
-
-  Called Terminal.Interpret()
-
-  Called Terminal.Interpret()
+Called Nonterminal.Interpret()
+Called Terminal.Interpret()
+Called Terminal.Interpret()
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了如何使用 Interpreter Pattern 將羅馬數字（Roman Numeral）轉換為十進位數字（Decimal）。
 
 ```csharp
-This is a placeholder code. To be replaced.using System;
+using System;
 using System.Collections.Generic;
 
 namespace Interpreter.RealWorld
@@ -329,17 +502,18 @@ namespace Interpreter.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 MCMXXVIII = 1928
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 `record` 型別與集合運算式 `[]`）。這是一個優雅的 C# Interpreter 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 `record` 型別與集合運算式 `[]`）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Interpreter.NetOptimized;
@@ -483,99 +657,13 @@ public class OneExpression : Expression
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 MCMXXVIII = 1928
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **產生過多單一用途的子類別與大量字串配置**：Dofactory 為個、十、百、千位分別建立了 4 個衍生類別（`ThousandExpression` 等），但它們只是覆寫回傳常數字串的 5 個虛擬方法；而且在 `Interpret` 過程中不斷呼叫 `context.Input = context.Input.Substring(...)`，每次都配置新的字串。
-- **現代 .NET 11 優化**：將同構的文法規則整合為資料驅動的單一不可變 `RomanRule` `record`，並可搭配 `ReadOnlySpan<char>`（零字串切片配置）來剖析輸入。
-
-### C# 15 / .NET 11 優化重點
-
-- **資料驅動的 `readonly record struct` 文法規則**：消除 4 個重複的衍生類別，直接用 Primary Constructor 定義符號與倍率。
-- **`ReadOnlySpan<char>` 零配置剖析**：使用 `StartsWith` 與 Slice 語法 `input[2..]`，在整個直譯過程中**完全不配置任何中間子字串（Zero String Allocation）**！
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Interpreter.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        const string roman = "MCMXXVIII";
-        int result = RomanInterpreter.Interpret(roman);
-        WriteLine($"{roman} = {result}");
-    }
-}
-
-/// <summary>
-/// 資料驅動的 TerminalExpression：消除重複的衍生類別
-/// </summary>
-public readonly record struct RomanExpression(
-    string One, string Four, string Five, string Nine, int Multiplier)
-{
-    // 使用 ReadOnlySpan<char> 與範圍切片 [1..] / [2..]，達成零字串記憶體配置 (Zero-allocation)
-    public void Interpret(ref ReadOnlySpan<char> input, ref int output)
-    {
-        if (input.IsEmpty) return;
-
-        if (input.StartsWith(Nine))
-        {
-            output += 9 * Multiplier;
-            input = input[2..];
-        }
-        else if (input.StartsWith(Four))
-        {
-            output += 4 * Multiplier;
-            input = input[2..];
-        }
-        else if (input.StartsWith(Five))
-        {
-            output += 5 * Multiplier;
-            input = input[1..];
-        }
-
-        while (input.StartsWith(One))
-        {
-            output += 1 * Multiplier;
-            input = input[1..];
-        }
-    }
-}
-
-public static class RomanInterpreter
-{
-    private static readonly RomanExpression[] GrammarTree =
-    [
-        new("M", " ", " ", " ", 1000),
-        new("C", "CD", "D", "CM", 100),
-        new("X", "XL", "L", "XC", 10),
-        new("I", "IV", "V", "IX", 1)
-    ];
-
-    public static int Interpret(ReadOnlySpan<char> roman)
-    {
-        int total = 0;
-        foreach (ref readonly var exp in GrammarTree.AsSpan())
-        {
-            exp.Interpret(ref roman, ref total);
-        }
-        return total;
-    }
-}
-```
+</details>
 
 ---
 

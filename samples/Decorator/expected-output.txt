@@ -1,0 +1,26 @@
+
+Book: Inside ASP.NET
+  Author: Worley
+  Copies: 10
+
+Video: Jaws
+  Director: Spielberg
+  Copies: 23
+  Playtime: 92 min
+
+Video: Jaws
+  Director: Spielberg
+  Copies: 23
+  Playtime: 92 min
+  Available: 21
+  Borrower: Customer #1
+  Borrower: Customer #2
+
+Video: Jaws
+  Director: Spielberg
+  Copies: 23
+  Playtime: 92 min
+  Available: 21
+  Borrower: Customer #1
+  Borrower: Customer #2
+  ** Staff pick of the month **

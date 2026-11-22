@@ -1,0 +1,25 @@
+<Solution>
+  <Project Path="AbstractFactory/AbstractFactory.csproj" />
+  <Project Path="Builder/Builder.csproj" />
+  <Project Path="FactoryMethod/FactoryMethod.csproj" />
+  <Project Path="Prototype/Prototype.csproj" />
+  <Project Path="Singleton/Singleton.csproj" />
+  <Project Path="Adapter/Adapter.csproj" />
+  <Project Path="Bridge/Bridge.csproj" />
+  <Project Path="Composite/Composite.csproj" />
+  <Project Path="Decorator/Decorator.csproj" />
+  <Project Path="Facade/Facade.csproj" />
+  <Project Path="Flyweight/Flyweight.csproj" />
+  <Project Path="Proxy/Proxy.csproj" />
+  <Project Path="ChainOfResponsibility/ChainOfResponsibility.csproj" />
+  <Project Path="Command/Command.csproj" />
+  <Project Path="Interpreter/Interpreter.csproj" />
+  <Project Path="Iterator/Iterator.csproj" />
+  <Project Path="Mediator/Mediator.csproj" />
+  <Project Path="Memento/Memento.csproj" />
+  <Project Path="Observer/Observer.csproj" />
+  <Project Path="State/State.csproj" />
+  <Project Path="Strategy/Strategy.csproj" />
+  <Project Path="TemplateMethod/TemplateMethod.csproj" />
+  <Project Path="Visitor/Visitor.csproj" />
+</Solution>

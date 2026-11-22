@@ -10,11 +10,26 @@
 
 **Command** Design Pattern 將請求封裝為一個物件，從而讓你可以用不同的請求來參數化（Parameterize）用戶端、將請求排入佇列（Queue）或記錄日誌（Log），以及支援可復原（Undoable）的操作。
 
-**Command** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+計算機要支援「復原」與「重做」。如果每個運算都是直接呼叫方法，做完之後不會留下任何紀錄：
+
+```csharp
+// 示意：直接呼叫，做完就沒有留下紀錄，無從復原
+calculator.Apply('+', 100);
+calculator.Apply('-', 50);
+```
+
+要復原，就必須記得「剛才做了什麼」。
+
+Command 把每一個操作包成一個物件，物件裡記錄了對象、動作與參數，並且知道如何執行與如何復原。操作一旦成為物件，就可以被存進集合、排隊、延後執行、復原與重做。
 
 ---
 
@@ -30,6 +45,8 @@
 
 參與此 Pattern 的類別與物件包括：
 
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
+
 - **Command** (`Command`)
   - 宣告一個用於執行操作的介面。
 - **ConcreteCommand** (`CalculatorCommand`)
@@ -44,7 +61,187 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Command](samples/Command)  
+> **執行方式**：`dotnet run --project samples/Command`
+
+**角色對照**：Command = `ICommand`；ConcreteCommand = `CalculatorCommand`；Receiver = `Calculator`；Invoker = `CommandHistory`；Client = 最上方的程式碼。
+
+<!-- sample:Command/Program.cs -->
+```csharp
+// Command：把「一個操作」包成物件，於是操作可以被保存、排隊、復原與重做。
+
+var calculator = new Calculator();
+var history = new CommandHistory();
+
+history.Execute(new CalculatorCommand(calculator, '+', 100));
+history.Execute(new CalculatorCommand(calculator, '-', 50));
+history.Execute(new CalculatorCommand(calculator, '*', 10));
+history.Execute(new CalculatorCommand(calculator, '/', 2));
+
+history.Undo(levels: 4);
+history.Redo(levels: 3);
+
+// ---- Command ----
+public interface ICommand
+{
+    void Execute();
+    void Undo();
+}
+
+// ---- ConcreteCommand：不可變，記住「對誰、做什麼、用什麼參數」 ----
+public sealed record CalculatorCommand(Calculator Calculator, char Operator, decimal Operand) : ICommand
+{
+    public void Execute() => Calculator.Apply(Operator, Operand);
+
+    // 復原 = 執行相反的運算
+    public void Undo() => Calculator.Apply(Inverse(Operator), Operand);
+
+    private static char Inverse(char @operator) => @operator switch
+    {
+        '+' => '-',
+        '-' => '+',
+        '*' => '/',
+        '/' => '*',
+        _ => throw new ArgumentOutOfRangeException(nameof(@operator), @operator, "Unknown operator"),
+    };
+}
+
+// ---- Receiver：真正執行工作的物件，不知道 Command 的存在 ----
+public sealed class Calculator
+{
+    public decimal Value { get; private set; }
+
+    public void Apply(char @operator, decimal operand)
+    {
+        Value = @operator switch
+        {
+            '+' => Value + operand,
+            '-' => Value - operand,
+            '*' => Value * operand,
+            '/' => Value / operand,
+            _ => throw new ArgumentOutOfRangeException(nameof(@operator), @operator, "Unknown operator"),
+        };
+
+        Console.WriteLine($"Value = {Value,5} (after {@operator} {operand})");
+    }
+}
+
+// ---- Invoker：只負責執行與保存命令，不知道命令的內容 ----
+public sealed class CommandHistory
+{
+    private readonly Stack<ICommand> _undoStack = new();
+    private readonly Stack<ICommand> _redoStack = new();
+
+    public void Execute(ICommand command)
+    {
+        command.Execute();
+        _undoStack.Push(command);
+        _redoStack.Clear();   // 執行新命令後，先前被復原的命令就不能再重做
+    }
+
+    public void Undo(int levels)
+    {
+        Console.WriteLine($"---- Undo {levels} levels");
+        while (levels-- > 0 && _undoStack.TryPop(out ICommand? command))
+        {
+            command.Undo();
+            _redoStack.Push(command);
+        }
+    }
+
+    public void Redo(int levels)
+    {
+        Console.WriteLine($"---- Redo {levels} levels");
+        while (levels-- > 0 && _redoStack.TryPop(out ICommand? command))
+        {
+            command.Execute();
+            _undoStack.Push(command);
+        }
+    }
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Command -->
+```text
+Value =   100 (after + 100)
+Value =    50 (after - 50)
+Value =   500 (after * 10)
+Value =   250 (after / 2)
+---- Undo 4 levels
+Value =   500 (after * 2)
+Value =    50 (after / 10)
+Value =   100 (after + 50)
+Value =     0 (after - 100)
+---- Redo 3 levels
+Value =   100 (after + 100)
+Value =    50 (after - 50)
+Value =   500 (after * 10)
+```
+<!-- /output -->
+
+### 重點解說
+
+- **命令是不可變的 `record`**：建立之後內容不會改變，所以放進歷史紀錄、重複執行都是安全的。
+- **兩個 `Stack`**：一個存可以復原的命令，一個存可以重做的命令。執行新命令時清空重做堆疊，行為與一般編輯器相同。
+- **Invoker 不知道命令的內容**：`CommandHistory` 只呼叫 `Execute` 與 `Undo`，新增其他種類的命令不需要修改它。
+- **`@operator`**：`operator` 是 C# 關鍵字，前面加上 `@` 才能當作變數名稱。
+- **`switch` 的 `_ =>` 分支丟出例外**：遇到不認識的運算子時立刻讓問題浮現，而不是默默略過。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版以一個 `List` 加上索引 `current` 管理復原與重做，邊界條件容易寫錯。本版改用兩個 `Stack`。
+- 原版的 `Calculator.Operation` 遇到不認識的運算子時不做任何事。本版丟出例外。
+- 原版的命令類別有可以修改的 `Operator` 與 `Operand` 屬性。本版的命令不可變。
+- 原版以 `int` 計算，整數除法會捨去小數，無法用乘法還原。本版改用 `decimal`（仍有極限，見練習 2）。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **`System.Windows.Input.ICommand`**：WPF 與 .NET MAUI 用它把按鈕繫結到 ViewModel 的操作（`Execute` 與 `CanExecute`）。
+- **`Action` 與 `Func<Task>` 委派**：不需要復原時，一個委派就是最輕量的命令。
+- **CQRS**：命令是一個 `record`，由對應的處理常式執行，例如 MediatR 或 Wolverine。
+- **背景工作佇列**：把要做的工作包成物件放進 `Channel<T>`，由背景服務依序取出執行。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 需要復原與重做、排程、佇列、重試或稽核紀錄。
+- 發出請求與實際執行的時間或地點不同。
+
+**不適合使用**
+
+- 只是要立刻呼叫一個方法：直接呼叫，或傳入委派。
+- 每個小操作都包成類別，會讓類別數量大幅增加。
+
+---
+
+## 練習題
+
+1. 新增 `ClearCommand`：`Execute` 把值歸零，`Undo` 還原成歸零之前的值。命令必須記住執行前的值，此時它還能是不可變的嗎？
+2. 依序執行 `+ 10`、`/ 3`，然後復原兩次。值會回到 0 嗎？為什麼「用相反的運算來復原」不一定可靠？有什麼替代做法？
+3. 新增 `MacroCommand`，它包含一串命令：`Execute` 依序執行，`Undo` 反向復原。
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Command Pattern 如何將請求儲存為物件，讓用戶端（Clients）能夠執行或重播（Playback）這些請求。
 
@@ -148,15 +345,16 @@ namespace Command.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Called Receiver.Action()
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了應用於簡易計算機的 Command Pattern，並支援無限次數的復原（Undo）與重做（Redo）。請注意，在 C# 中 `operator` 是保留關鍵字，在其前方加上 `@` 前綴（即 `@operator`）即可將其作為識別字（Identifier）使用。
 
@@ -355,45 +553,32 @@ namespace Command.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Current value = 100 (following + 100)
+Current value =  50 (following - 50)
+Current value = 500 (following * 10)
+Current value = 250 (following / 2)
 
-  Current value =  50 (following - 50)
+---- Undo 4 levels
+Current value = 500 (following * 2)
+Current value =  50 (following / 10)
+Current value = 100 (following + 50)
+Current value =   0 (following - 100)
 
-  Current value = 500 (following * 10)
-
-  Current value = 250 (following / 2)
-
-  
-
-  ---- Undo 4 levels
-
-  Current value = 500 (following * 2)
-
-  Current value =  50 (following / 10)
-
-  Current value = 100 (following + 50)
-
-  Current value =   0 (following - 100)
-
-  
-
-  ---- Redo 3 levels
-
-  Current value = 100 (following + 100)
-
-  Current value =  50 (following - 50)
-
-  Current value = 500 (following * 10)
+---- Redo 3 levels
+Current value = 100 (following + 100)
+Current value =  50 (following - 50)
+Current value = 500 (following * 10)
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors 與 `switch` 運算式）。這是一個優雅的 C# Command 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors 與 `switch` 運算式）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Command.NetOptimized;
@@ -555,157 +740,27 @@ public class User
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Current value = 100 (following + 100)
+Current value =  50 (following - 50)
+Current value = 500 (following * 10)
+Current value = 250 (following / 2)
 
-    Current value =  50 (following - 50)
+---- Undo 4 levels
+Current value = 500 (following * 2)
+Current value =  50 (following / 10)
+Current value = 100 (following + 50)
+Current value =   0 (following - 100)
 
-    Current value = 500 (following * 10)
-
-    Current value = 250 (following / 2)
-
-    
-
-    ---- Undo 4 levels
-
-    Current value = 500 (following * 2)
-
-    Current value =  50 (following / 10)
-
-    Current value = 100 (following + 50)
-
-    Current value =   0 (following - 100)
-
-    
-
-    ---- Redo 3 levels
-
-    Current value = 100 (following + 100)
-
-    Current value =  50 (following - 50)
-
-    Current value = 500 (following * 10)
+---- Redo 3 levels
+Current value = 100 (following + 100)
+Current value =  50 (following - 50)
+Current value = 500 (following * 10)
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **可變的 Command 物件**：Dofactory 的 `CalculatorCommand` 是具有 `Operator` 與 `Operand` `set` 屬性的類別。在實務上（如 CQRS 架構、Event Sourcing 或 Undo/Redo 佇列），**Command 應該是完全不可變（Immutable）的資料載體或閉包**。
-
-### C# 15 / .NET 11 優化重點
-
-- **`readonly record struct` 實作 `ICommand`**：將 `CalculatorCommand` 改為 `readonly record struct`，使命令本身完全不可變且減少 Heap 記憶體配置。
-- **C# `switch` 運算式**：將 `Calculator.Operation` 的傳統 `switch` 陳述式改為精煉的 `switch` 運算式。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Command.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        var user = new User();
-
-        user.Compute('+', 100);
-        user.Compute('-', 50);
-        user.Compute('*', 10);
-        user.Compute('/', 2);
-
-        user.Undo(4);
-        user.Redo(3);
-    }
-}
-
-public interface ICommand
-{
-    void Execute();
-    void UnExecute();
-}
-
-/// <summary>
-/// 不可變的 Command：使用 readonly record struct 封裝命令參數
-/// </summary>
-public readonly record struct CalculatorCommand(Calculator Calculator, char Operator, int Operand) : ICommand
-{
-    public void Execute() => Calculator.Operation(Operator, Operand);
-
-    public void UnExecute() => Calculator.Operation(Undo(Operator), Operand);
-
-    private static char Undo(char @operator) => @operator switch
-    {
-        '+' => '-',
-        '-' => '+',
-        '*' => '/',
-        '/' => '*',
-        _ => throw new ArgumentException("Invalid operator", nameof(@operator))
-    };
-}
-
-public sealed class Calculator
-{
-    private int _current;
-
-    public void Operation(char @operator, int operand)
-    {
-        _current = @operator switch
-        {
-            '+' => _current + operand,
-            '-' => _current - operand,
-            '*' => _current * operand,
-            '/' => _current / operand,
-            _ => _current
-        };
-        WriteLine($"Current value = {_current,3} (following {@operator} {operand})");
-    }
-}
-
-public sealed class User
-{
-    private readonly Calculator _calculator = new();
-    private readonly List<ICommand> _commands = [with(capacity: 8)];
-    private int _current;
-
-    public void Compute(char @operator, int operand)
-    {
-        ICommand command = new CalculatorCommand(_calculator, @operator, operand);
-        command.Execute();
-
-        if (_current < _commands.Count)
-        {
-            _commands.RemoveRange(_current, _commands.Count - _current);
-        }
-        _commands.Add(command);
-        _current++;
-    }
-
-    public void Redo(int levels)
-    {
-        WriteLine($"\n---- Redo {levels} levels ");
-        for (int i = 0; i < levels && _current < _commands.Count; i++)
-        {
-            _commands[_current++].Execute();
-        }
-    }
-
-    public void Undo(int levels)
-    {
-        WriteLine($"\n---- Undo {levels} levels ");
-        for (int i = 0; i < levels && _current > 0; i++)
-        {
-            _commands[--_current].UnExecute();
-        }
-    }
-}
-```
+</details>
 
 ---
 

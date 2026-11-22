@@ -1,0 +1,6 @@
+Jim Johnson: Deposited $500.00                Balance =     500.00  Status = Silver
+Jim Johnson: Deposited $300.00                Balance =     800.00  Status = Silver
+Jim Johnson: Deposited $550.00                Balance =   1,350.00  Status = Gold
+Jim Johnson: Interest paid                    Balance =   1,417.50  Status = Gold
+Jim Johnson: Withdrew $2,000.00               Balance =    -582.50  Status = Red
+Jim Johnson: Withdrawal of $1,100.00 refused  Balance =    -582.50  Status = Red

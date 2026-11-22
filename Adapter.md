@@ -10,11 +10,29 @@
 
 **Adapter** Design Pattern 將一個類別的介面轉換成用戶端（Clients）所期望的另一個介面。此 Design Pattern 讓原本因為介面不相容而無法一起運作的類別能夠協同運作。
 
-**Adapter** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+公司有一個既有的 `ChemicalDatabank` 類別可以查詢化合物資料，但它的介面是舊式設計：用字串代碼區分查詢項目，資料分散在三個方法裡。每個使用它的地方都得知道這些細節：
+
+```csharp
+// 示意：每個呼叫的地方都要知道 "M" 是熔點、"B" 是沸點
+double melting = databank.GetCriticalPoint("water", "M");
+double boiling = databank.GetCriticalPoint("water", "B");
+string formula = databank.GetMolecularStructure("water");
+```
+
+- 代碼字串擴散到整個程式，打錯字不會有編譯錯誤。
+- 舊 API 一旦改版或換成別的資料來源，所有呼叫的地方都要修改。
+- 我們不能修改 `ChemicalDatabank`（它可能來自第三方或其他團隊）。
+
+Adapter 是一個夾在中間的轉接類別：對內呼叫舊 API，對外提供我們想要的介面。
 
 ---
 
@@ -30,6 +48,8 @@
 
 參與此 Pattern 的類別與物件包括：
 
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
+
 - **Target** (`ChemicalCompound`)
   - 定義 `Client` 所使用的特定領域（Domain-specific）介面。
 - **Adapter** (`Compound`)
@@ -41,7 +61,167 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Adapter](samples/Adapter)  
+> **執行方式**：`dotnet run --project samples/Adapter`
+
+**角色對照**：Target = `ICompound`；Adapter = `CompoundAdapter`；Adaptee = `ChemicalDatabank`；Client = 最上方的迴圈。
+
+<!-- sample:Adapter/Program.cs -->
+```csharp
+// Adapter：既有類別的介面不合用、又不能修改它時，寫一個轉接類別把它包成我們想要的介面。
+
+var databank = new ChemicalDatabank();
+
+ICompound[] compounds =
+[
+    new CompoundAdapter(databank, "Water"),
+    new CompoundAdapter(databank, "Benzene"),
+    new CompoundAdapter(databank, "Ethanol"),
+];
+
+foreach (ICompound compound in compounds)
+{
+    Console.WriteLine($"Compound: {compound.Name}");
+    Console.WriteLine($"  Formula   : {compound.Formula}");
+    Console.WriteLine($"  Weight    : {compound.MolecularWeight}");
+    Console.WriteLine($"  Melting Pt: {compound.MeltingPoint}");
+    Console.WriteLine($"  Boiling Pt: {compound.BoilingPoint}");
+}
+
+// ---- Target：我們的程式希望使用的介面 ----
+public interface ICompound
+{
+    string Name { get; }
+    string Formula { get; }
+    double MolecularWeight { get; }
+    double MeltingPoint { get; }
+    double BoilingPoint { get; }
+}
+
+// ---- Adapter：用「組合」持有 Adaptee，把呼叫轉換過去 ----
+public sealed class CompoundAdapter(ChemicalDatabank databank, string name) : ICompound
+{
+    public string Name => name;
+    public string Formula => databank.GetMolecularStructure(name);
+    public double MolecularWeight => databank.GetMolecularWeight(name);
+
+    // 舊 API 用 "M" / "B" 這種代碼區分熔點與沸點，這個細節只留在 Adapter 裡
+    public double MeltingPoint => databank.GetCriticalPoint(name, "M");
+    public double BoilingPoint => databank.GetCriticalPoint(name, "B");
+}
+
+// ---- Adaptee：既有或第三方的 API，假設我們不能修改它 ----
+public sealed class ChemicalDatabank
+{
+    public double GetCriticalPoint(string compound, string point) => (compound.ToLowerInvariant(), point) switch
+    {
+        ("water", "M") => 0.0,
+        ("water", "B") => 100.0,
+        ("benzene", "M") => 5.5,
+        ("benzene", "B") => 80.1,
+        ("ethanol", "M") => -114.1,
+        ("ethanol", "B") => 78.3,
+        _ => 0d,
+    };
+
+    public string GetMolecularStructure(string compound) => compound.ToLowerInvariant() switch
+    {
+        "water" => "H2O",
+        "benzene" => "C6H6",
+        "ethanol" => "C2H5OH",
+        _ => "",
+    };
+
+    public double GetMolecularWeight(string compound) => compound.ToLowerInvariant() switch
+    {
+        "water" => 18.015,
+        "benzene" => 78.1134,
+        "ethanol" => 46.0688,
+        _ => 0d,
+    };
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Adapter -->
+```text
+Compound: Water
+  Formula   : H2O
+  Weight    : 18.015
+  Melting Pt: 0
+  Boiling Pt: 100
+Compound: Benzene
+  Formula   : C6H6
+  Weight    : 78.1134
+  Melting Pt: 5.5
+  Boiling Pt: 80.1
+Compound: Ethanol
+  Formula   : C2H5OH
+  Weight    : 46.0688
+  Melting Pt: -114.1
+  Boiling Pt: 78.3
+```
+<!-- /output -->
+
+### 重點解說
+
+- **用組合而不是繼承**：`CompoundAdapter` 在建構函式接收 `ChemicalDatabank` 並持有它（Object Adapter），不需要繼承任何類別。
+- **Adaptee 完全沒有被修改**：所有轉換都發生在 Adapter 裡。
+- **舊 API 的細節只出現在一處**：`"M"` 與 `"B"` 這兩個代碼只存在於 `CompoundAdapter`。
+- **Client 只相依 `ICompound`**：日後要換資料來源，只需要再寫一個實作 `ICompound` 的類別，迴圈不必修改。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版的 `RichCompound` 繼承自 `Compound`，在建構時把資料讀出來存進欄位，並且自己負責顯示。本版的 Target 是介面，Adapter 只做轉換，顯示交給呼叫端。
+- 原版把水的分子式寫成 `H20`（數字 0），本版更正為 `H2O`。
+- 原版的 Adaptee 以 `float` 回傳臨界點。`float` 轉成 `double` 時會顯示出誤差（例如 `80.1f` 變成 `80.0999984741211`），本版的 Adaptee 直接使用 `double`。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **`StreamReader` 與 `StreamWriter`**：把以位元組為單位的 `Stream`，轉接成以文字為單位的 `TextReader` 與 `TextWriter`。
+- **`DbDataAdapter`**：把資料庫查詢結果轉接成 `DataSet`。
+- **包裝第三方 SDK**：把金流、簡訊、雲端儲存等外部 SDK 包成自己定義的介面。日後更換廠商時只需要換一個 Adapter。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 要使用一個無法修改的類別（第三方元件、舊系統），但它的介面不符合需求。
+- 想把對外部元件的相依集中在一個地方。
+
+**不適合使用**
+
+- 兩邊的程式碼都是自己的，而且可以直接修改介面：改介面比多一層轉接好。
+- Adapter 裡開始出現商業邏輯：它的責任應該只有轉換。
+
+---
+
+## 練習題
+
+1. 新增 `ICompound` 的第二個實作 `InMemoryCompound`，資料直接由建構函式傳入。把它加進陣列，確認迴圈不需要修改。
+2. 舊 API 對不認識的化合物會回傳 `0` 與空字串。讓 `CompoundAdapter` 在這種情況下丟出 `KeyNotFoundException`，把舊 API 的怪行為擋在 Adapter 裡。
+3. `CompoundAdapter` 每讀取一次屬性就查詢一次舊 API。如果查詢很慢，可以怎麼改？
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Adapter Pattern 如何將一個類別的介面映射（Maps）到另一個類別上，使它們能夠一起運作。這些不相容的類別可能來自不同的函式庫或框架。
 
@@ -113,15 +293,16 @@ namespace Adapter.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Called SpecificRequest()
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了如何使用一個舊版（Legacy）的化學資料庫（`ChemicalDatabank`）。化學化合物（`Compound`）物件會透過一個 `Adapter` 介面來存取該資料庫。
 
@@ -273,53 +454,36 @@ namespace Adapter.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Compound: Unknown ------
 
-  
+Compound: Water ------
+ Formula: H20
+ Weight : 18.015
+ Melting Pt: 0
+ Boiling Pt: 100
 
-  Compound: Water ------
+Compound: Benzene ------
+ Formula: C6H6
+ Weight : 78.1134
+ Melting Pt: 5.5
+ Boiling Pt: 80.1
 
-   Formula: H20
-
-   Weight : 18.015
-
-   Melting Pt: 0
-
-   Boiling Pt: 100
-
-  
-
-  Compound: Benzene ------
-
-   Formula: C6H6
-
-   Weight : 78.1134
-
-   Melting Pt: 5.5
-
-   Boiling Pt: 80.1
-
-  
-
-  Compound: Alcohol ------
-
-   Formula: C2H6O2
-
-   Weight : 46.0688
-
-   Melting Pt: -114.1
-
-   Boiling Pt: 78.3
+Compound: Ethanol ------
+ Formula: C2H5OH
+ Weight : 46.0688
+ Melting Pt: -114.1
+ Boiling Pt: 78.3
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 C# `switch` 運算式 Pattern Matching 與列舉型別 `Chemical`）。這是一個優雅的 C# Adapter 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 C# `switch` 運算式 Pattern Matching 與列舉型別 `Chemical`）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Adapter.NetOptimized;
@@ -474,150 +638,31 @@ public enum State
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Compound: Unknown ------
 
-    
+Compound: Water ------
+ Formula: H20
+ Weight : 18.015
+ Melting Pt: 0
+ Boiling Pt: 100
 
-    Compound: Water ------
+Compound: Benzene ------
+ Formula: C6H6
+ Weight : 78.1134
+ Melting Pt: 5.5
+ Boiling Pt: 80.1
 
-     Formula: H20
-
-     Weight : 18.015
-
-     Melting Pt: 0
-
-     Boiling Pt: 100
-
-    
-
-    Compound: Benzene ------
-
-     Formula: C6H6
-
-     Weight : 78.1134
-
-     Melting Pt: 5.5
-
-     Boiling Pt: 80.1
-
-    
-
-    Compound: Alcohol ------
-
-     Formula: C2H6O2
-
-     Weight : 46.0688
-
-     Melting Pt: -114.1
-
-     Boiling Pt: 78.3
+Compound: Ethanol ------
+ Formula: C2H5OH
+ Weight : 46.0688
+ Melting Pt: -114.1
+ Boiling Pt: 78.3
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **類別繼承耦合**：Dofactory 的 `.NET Optimized` 讓 `RichCompound` 繼承自一個空殼的 `Compound` 類別，並依賴多個分散的 `switch` 呼叫。
-- **重複查詢轉接目標（Adaptee）**：每次顯示一個化合物就要呼叫 `bank` 4 次。在現代 C# 中，可以透過 **Tuple Pattern Matching** 或 **C# 14/15 Extension Blocks（擴充區塊）** 直接為舊有 `ChemicalDatabank` 提供現代化的轉接介面。
-
-### C# 15 / .NET 11 優化重點
-
-- **介面導向與 Primary Constructor 組合（Object Adapter）**：遵循「合成優於繼承（Composition over Inheritance）」，將 `ChemicalDatabank` 注入 Adapter。
-- **Tuple / Exhaustive Pattern Matching**：在 Legacy API 轉換時一次回傳結構化資料或使用簡潔的 `switch` 運算式。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Adapter.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        var databank = new ChemicalDatabank();
-
-        ReadOnlySpan<ICompound> compounds =
-        [
-            new AdaptedCompound(Chemical.Water, databank),
-            new AdaptedCompound(Chemical.Benzene, databank),
-            new AdaptedCompound(Chemical.Ethanol, databank)
-        ];
-
-        foreach (var compound in compounds)
-        {
-            compound.Display();
-        }
-    }
-}
-
-public enum Chemical { Water, Benzene, Ethanol }
-public enum State { Boiling, Melting }
-
-public interface ICompound
-{
-    void Display();
-}
-
-/// <summary>
-/// Object Adapter：使用 Primary Constructor 封裝 Legacy Adaptee
-/// </summary>
-public sealed class AdaptedCompound(Chemical chemical, ChemicalDatabank bank) : ICompound
-{
-    public void Display()
-    {
-        var formula = bank.GetMolecularStructure(chemical);
-        var weight = bank.GetMolecularWeight(chemical);
-        var melting = bank.GetCriticalPoint(chemical, State.Melting);
-        var boiling = bank.GetCriticalPoint(chemical, State.Boiling);
-
-        WriteLine($"\nCompound: {chemical} ------ ");
-        WriteLine($" Formula: {formula}");
-        WriteLine($" Weight : {weight}");
-        WriteLine($" Melting Pt: {melting}");
-        WriteLine($" Boiling Pt: {boiling}");
-    }
-}
-
-/// <summary>
-/// The 'Adaptee' class (模擬既有或第三方系統 API)
-/// </summary>
-public sealed class ChemicalDatabank
-{
-    public float GetCriticalPoint(Chemical compound, State point) => (compound, point) switch
-    {
-        (Chemical.Water, State.Melting) => 0.0f,
-        (Chemical.Water, State.Boiling) => 100.0f,
-        (Chemical.Benzene, State.Melting) => 5.5f,
-        (Chemical.Benzene, State.Boiling) => 80.1f,
-        (Chemical.Ethanol, State.Melting) => -114.1f,
-        (Chemical.Ethanol, State.Boiling) => 78.3f,
-        _ => 0f
-    };
-
-    public string GetMolecularStructure(Chemical compound) => compound switch
-    {
-        Chemical.Water => "H20",
-        Chemical.Benzene => "C6H6",
-        Chemical.Ethanol => "C2H5OH",
-        _ => ""
-    };
-
-    public double GetMolecularWeight(Chemical compound) => compound switch
-    {
-        Chemical.Water => 18.015,
-        Chemical.Benzene => 78.1134,
-        Chemical.Ethanol => 46.0688,
-        _ => 0d
-    };
-}
-```
+</details>
 
 ---
 

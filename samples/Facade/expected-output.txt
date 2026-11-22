@@ -1,0 +1,9 @@
+Ann McKinsey applies for a $125,000.00 loan
+  Check bank savings for Ann McKinsey
+  Check credit score for Ann McKinsey
+  Check loan history for Ann McKinsey
+Ann McKinsey has been Approved: all checks passed
+
+Bob Miller applies for a $125,000.00 loan
+  Check bank savings for Bob Miller
+Bob Miller has been Rejected: insufficient savings

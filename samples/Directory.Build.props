@@ -1,0 +1,11 @@
+<Project>
+  <!-- 所有範例專案共用的設定 -->
+  <PropertyGroup>
+    <!-- 預設以 .NET 11 / C# 15 建置；可用 -p:SampleTargetFramework=net10.0 覆寫（Visitor 需要 C# 15，無法在 .NET 10 建置） -->
+    <SampleTargetFramework Condition="'$(SampleTargetFramework)' == ''">net11.0</SampleTargetFramework>
+    <TargetFramework>$(SampleTargetFramework)</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

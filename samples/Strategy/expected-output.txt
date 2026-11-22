@@ -1,0 +1,18 @@
+By name:
+  Anna    id=760  score=68
+  Jimmy   id=487  score=91
+  Samual  id=154  score=82
+  Sandra  id=655  score=77
+  Vivek   id=133  score=91
+By score (high to low):
+  Jimmy   id=487  score=91
+  Vivek   id=133  score=91
+  Samual  id=154  score=82
+  Sandra  id=655  score=77
+  Anna    id=760  score=68
+By id:
+  Vivek   id=133  score=91
+  Samual  id=154  score=82
+  Jimmy   id=487  score=91
+  Sandra  id=655  score=77
+  Anna    id=760  score=68

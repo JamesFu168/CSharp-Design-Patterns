@@ -1,0 +1,15 @@
+Compound: Water
+  Formula   : H2O
+  Weight    : 18.015
+  Melting Pt: 0
+  Boiling Pt: 100
+Compound: Benzene
+  Formula   : C6H6
+  Weight    : 78.1134
+  Melting Pt: 5.5
+  Boiling Pt: 80.1
+Compound: Ethanol
+  Formula   : C2H5OH
+  Weight    : 46.0688
+  Melting Pt: -114.1
+  Boiling Pt: 78.3

@@ -1,0 +1,8 @@
+Proxy created. The real calculator has not been created yet.
+  [Proxy] Add(4, 2)
+  [RemoteCalculator] connecting to the math service...
+4 + 2 = 6
+  [Proxy] Multiply(4, 2)
+4 * 2 = 8
+  [Proxy] Divide(4, 2)
+4 / 2 = 2

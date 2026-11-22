@@ -1,0 +1,17 @@
+Customer Group: Chicago
+  Jim Jones
+  Samual Jackson
+  Allen Good
+
+Customer Group: Chicago
+  1. Jim Jones
+  2. Samual Jackson
+  3. Allen Good
+
+Customer Group: Taipei
+  Ann Stills
+  Lisa Giolani
+
+Customer Group: Taipei
+  1. Ann Stills
+  2. Lisa Giolani

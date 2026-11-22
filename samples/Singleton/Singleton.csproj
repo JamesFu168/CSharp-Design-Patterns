@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 示範「交給 DI 容器管理 Singleton」需要的套件 -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+  </ItemGroup>
+
+</Project>

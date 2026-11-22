@@ -1,0 +1,21 @@
+name: samples
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 11.0.x
+
+      # 建置並執行全部範例，確認輸出與文章內容都和 samples/ 一致
+      - name: Build, run and compare samples
+        shell: pwsh
+        run: ./tools/sync-samples.ps1 -Check

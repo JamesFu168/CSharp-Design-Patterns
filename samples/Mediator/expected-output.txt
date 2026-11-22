@@ -1,0 +1,5 @@
+To a Beatle: Yoko to John: 'Hi John!'
+To a Beatle: Paul to Ringo: 'All you need is love'
+To a Beatle: Ringo to George: 'My sweet Lord'
+To a non-Beatle: John to Yoko: 'My sweet love'
+[Chatroom] 'Pete' is not in the room; message from Paul was not delivered.

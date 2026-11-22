@@ -1,0 +1,10 @@
+Resume:
+  Skills
+  Education
+  Experience
+Report:
+  Introduction
+  Results
+  Conclusion
+  Summary
+  Bibliography

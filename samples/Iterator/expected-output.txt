@@ -1,0 +1,7 @@
+All      : Item 0, Item 1, Item 2, Item 3, Item 4, Item 5, Item 6, Item 7, Item 8
+Step by 2: Item 0, Item 2, Item 4, Item 6, Item 8
+Reversed : Item 8, Item 7, Item 6, Item 5, Item 4, Item 3, Item 2, Item 1, Item 0
+First two of step 3: Item 0, Item 3
+Page     : Item 0, Item 1, Item 2, Item 3
+Page     : Item 4, Item 5, Item 6, Item 7
+Page     : Item 8

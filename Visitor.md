@@ -10,11 +10,20 @@
 
 **Visitor** Design Pattern 代表一個要在某個物件結構（Object Structure）之各個元素上執行的操作。此 Pattern 讓你可以在不修改各元素所屬類別的情況下，定義一個新的操作。
 
-**Visitor** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural 與 Real-world 兩種原版程式碼，以及一份依其風格補上的 .NET Optimized 對照版本。
+
+---
+
+## 問題情境 (Problem)
+
+公司的員工分成三種職級：`Clerk`、`Director`、`President`。人資部門要對所有員工執行「調薪」與「增加休假」，之後還會有更多操作（計算獎金、產生報表），而且每種職級的規則都不同。
+
+- **做法一：把每個操作都寫成員工類別的方法。** 每新增一個操作就要修改三個類別，薪資、休假、報表的邏輯全部擠在員工類別裡。
+- **做法二：傳統的 Visitor。** 每個員工類別實作 `Accept(IVisitor)`，每個操作寫成一個 Visitor 類別，為每種職級各提供一個 `Visit` 方法。這樣新增操作不必修改員工類別，但需要相當多固定的程式碼（見附錄的原版範例）。
+- **做法三：封閉的型別階層加上 `switch`。** 這是本篇採用的寫法，也是 C# 15 新增的 `closed` 與 `union` 最適合的用途。
 
 ---
 
@@ -29,6 +38,8 @@
 ## 參與者 (Participants)
 
 參與此 Pattern 的類別與物件包括：
+
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
 
 - **Visitor** (`Visitor` / `IVisitor`)
   - 為物件結構中的每一個 `ConcreteElement` 類別宣告一個 `Visit` 操作。該操作的名稱與簽章（Signature）會識別出向 Visitor 發送 `Visit` 請求的類別。這讓 Visitor 可以確定正在被拜訪之元素的具體類別，接著 Visitor 就可以直接透過該元素的特定介面來存取它。
@@ -45,7 +56,176 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Visitor](samples/Visitor)  
+> **執行方式**：`dotnet run --project samples/Visitor`
+
+**角色對照**：Element = `Employee`；ConcreteElement = `Clerk`、`Director`、`President`；Visitor = `Payroll` 的每一個方法；ObjectStructure = `employees` 陣列。
+
+<!-- sample:Visitor/Program.cs -->
+```csharp
+// Visitor：在不修改既有型別的前提下，替「一組固定的型別」新增操作。
+// C# 15 可以用 closed 階層（或 union）加上 switch，取代傳統的 Accept / Visit 雙重分派。
+
+Employee[] employees =
+[
+    new Clerk("Kevin", 25_000m, VacationDays: 14),
+    new Director("Elly", 35_000m, VacationDays: 16),
+    new President("Eric", 45_000m, VacationDays: 21),
+];
+
+// 兩個「操作」都寫在 Employee 階層之外，新增第三個操作也不必修改任何 Employee 類別
+foreach (Employee employee in employees)
+{
+    Employee raised = Payroll.RaiseIncome(employee);
+    Console.WriteLine($"{employee.GetType().Name} {employee.Name}: income ${employee.Income:N2} -> ${raised.Income:N2}");
+}
+
+Console.WriteLine();
+
+foreach (Employee employee in employees)
+{
+    Employee rested = Payroll.AddVacation(employee);
+    Console.WriteLine($"{employee.GetType().Name} {employee.Name}: vacation {employee.VacationDays} -> {rested.VacationDays} days");
+}
+
+Console.WriteLine();
+
+// union：型別之間沒有共同的基底類別時，用 union 宣告「一定是這幾種之一」
+Bonus[] bonuses = [new CashBonus(1_500m), new StockBonus("MSFT", 10)];
+foreach (Bonus bonus in bonuses)
+{
+    Console.WriteLine($"Bonus: {Payroll.Describe(bonus)}");
+}
+
+// ---- Element：closed 表示「直接子類別只能宣告在同一個組件」，
+// 所以編譯器知道 Employee 只可能是下面這三種。closed 類別本身一律是抽象的。
+public closed record Employee(string Name, decimal Income, int VacationDays);
+
+// ---- ConcreteElement ----
+public sealed record Clerk(string Name, decimal Income, int VacationDays) : Employee(Name, Income, VacationDays);
+public sealed record Director(string Name, decimal Income, int VacationDays) : Employee(Name, Income, VacationDays);
+public sealed record President(string Name, decimal Income, int VacationDays) : Employee(Name, Income, VacationDays);
+
+public sealed record CashBonus(decimal Amount);
+public sealed record StockBonus(string Symbol, int Shares);
+public union Bonus(CashBonus, StockBonus);
+
+// ---- Visitor：每個操作是一個方法，用 switch 依實際型別決定行為 ----
+public static class Payroll
+{
+    public static Employee RaiseIncome(Employee employee)
+    {
+        // 三種型別都列出來了，所以不需要 _ => 分支。
+        // 日後新增第四種 Employee 而這裡忘了處理，編譯器會提出警告。
+        decimal rate = employee switch
+        {
+            Clerk => 0.10m,
+            Director => 0.12m,
+            President => 0.15m,
+        };
+
+        // with：複製一份並修改指定屬性，原本的物件不會被改動
+        return employee with { Income = employee.Income * (1 + rate) };
+    }
+
+    public static Employee AddVacation(Employee employee)
+    {
+        int extraDays = employee switch
+        {
+            Clerk => 3,
+            Director => 5,
+            President => 7,
+        };
+
+        return employee with { VacationDays = employee.VacationDays + extraDays };
+    }
+
+    public static string Describe(Bonus bonus) => bonus switch
+    {
+        CashBonus cash => $"cash ${cash.Amount:N2}",
+        StockBonus stock => $"{stock.Shares} shares of {stock.Symbol}",
+    };
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Visitor -->
+```text
+Clerk Kevin: income $25,000.00 -> $27,500.00
+Director Elly: income $35,000.00 -> $39,200.00
+President Eric: income $45,000.00 -> $51,750.00
+
+Clerk Kevin: vacation 14 -> 17 days
+Director Elly: vacation 16 -> 21 days
+President Eric: vacation 21 -> 28 days
+
+Bonus: cash $1,500.00
+Bonus: 10 shares of MSFT
+```
+<!-- /output -->
+
+### 重點解說
+
+- **`closed`（C# 15）**：標記為 `closed` 的類別，直接衍生的類別只能宣告在同一個組件，所以編譯器知道 `Employee` 只可能是這三種。`closed` 類別本身一律是抽象的，不能再加上 `abstract`。
+- **窮舉檢查**：`switch` 列出全部三種型別，所以不需要 `_ =>` 分支。日後新增第四種職級而忘了處理，編譯器會提出警告；本專案把警告視為錯誤，所以會直接建置失敗。
+- **`with`**：`employee with { Income = ... }` 會回傳一份修改過的複本，原本的物件不變。因此輸出可以同時顯示調整前後的數值。
+- **`union`（C# 15）**：`CashBonus` 與 `StockBonus` 沒有共同的基底類別。`union Bonus(CashBonus, StockBonus)` 宣告一個「一定是這兩種之一」的型別，同樣可以用 `switch` 做窮舉檢查。
+- **這種寫法的取捨**：新增「操作」很容易（多寫一個方法），新增「型別」則要修改每一個 `switch`（編譯器會指出所有需要修改的地方）。把操作寫成類別的虛擬方法則正好相反。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版的 Visitor 只有一個 `Visit(Element element)` 方法，在裡面把參數轉型成 `Employee` 之後套用同一條規則，所以三種職級的調薪幅度都是 10%、休假都增加 3 天。它並沒有「依型別執行不同的邏輯」，而這正是 Visitor 存在的理由。本版的每種職級都有自己的規則。
+- 原版需要 `IVisitor`、`Element.Accept`、`Employees.Accept` 等固定的程式碼。本版以 `switch` 取代。
+- 原版直接修改員工物件。本版回傳新的物件，原始資料不變。
+- 原版以 `double` 表示薪資。本版改用 `decimal`。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **`System.Linq.Expressions.ExpressionVisitor`**：傳統 Visitor 的代表，EF Core 用它把 LINQ 查詢轉換成 SQL。
+- **Roslyn**：`CSharpSyntaxVisitor` 與 `CSharpSyntaxWalker` 用來走訪語法樹，分析器與來源產生器都以此為基礎。
+- **型別模式比對**：`switch` 從 C# 7 開始可以依型別分支；C# 15 的 `closed` 與 `union` 補上了「是否涵蓋所有情況」的編譯期檢查。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 型別的種類固定，但操作會持續增加，例如語法樹、文件節點、幾何圖形。
+- 一個操作需要跨多種型別累積結果。
+
+**不適合使用**
+
+- 型別經常新增：改用虛擬方法或介面，新增型別時才不必修改既有程式碼。
+- 只有一兩個操作：直接寫成虛擬方法。
+- 型別階層不是你能控制的（無法標記 `closed`）：`switch` 仍然可以用，但必須保留 `_ =>` 分支。
+
+---
+
+## 練習題
+
+1. 新增 `Manager` 職級，只新增 `record`，不修改 `Payroll`。建置專案，閱讀編譯器的訊息。
+2. 新增第三個操作 `AnnualCost(Employee)`，回傳年薪加上依職級而定的津貼。確認不需要修改任何員工類別。
+3. 把 `Employee` 的 `closed` 改成 `abstract` 再建置，觀察 `switch` 的訊息有什麼變化。
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的 Structural 與 Real-world 兩種原版程式碼，以及一份依其風格補上的 .NET Optimized 對照版本，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Visitor Pattern 如何讓一個物件走訪（Traverses）一個物件結構，並對該結構中的每個節點執行相同的操作。不同的 Visitor 物件會定義不同的操作。
 
@@ -209,21 +389,19 @@ namespace Visitor.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 ConcreteElementA visited by ConcreteVisitor1
-
-  ConcreteElementB visited by ConcreteVisitor1
-
-  ConcreteElementA visited by ConcreteVisitor2
-
-  ConcreteElementB visited by ConcreteVisitor2
+ConcreteElementB visited by ConcreteVisitor1
+ConcreteElementA visited by ConcreteVisitor2
+ConcreteElementB visited by ConcreteVisitor2
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了 Visitor Pattern 如何讓兩個物件走訪一份員工（`Employees`）清單，並對每位員工（`Employee`）執行相同的操作。這兩個 Visitor 物件定義了不同的操作——一個用來調整休假天數（`VacationVisitor`），另一個則用來調整薪資收入（`IncomeVisitor`）。
 
@@ -421,29 +599,26 @@ namespace Visitor.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Clerk Kevin's new income: $27,500.00
+Director Elly's new income: $38,500.00
+President Eric's new income: $49,500.00
 
-  Director Elly's new income: $38,500.00
-
-  President Eric's new income: $49,500.00
-
-  
-
-  Clerk Kevin's new vacation days: 17
-
-  Director Elly's new vacation days: 19
-
-  President Eric's new vacation days: 24
+Clerk Kevin's new vacation days: 17
+Director Elly's new vacation days: 19
+President Eric's new vacation days: 24
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的真實世界情境，但採用了現代化、內建的 .NET 功能（例如 Primary Constructors、泛型 `List<Employee>` 繼承以及 C# Pattern Matching `is Employee employee`）。這是一個優雅的 C# Visitor 解決方案。
+> **註**：Dofactory 網站並未公開 Visitor 的 .NET Optimized 程式碼。以下是依該網站同系列範例的風格（繼承 `List<Employee>`、Primary Constructor、`is Employee` 轉型）補上的對照版本，並非 Dofactory 的原始內容。
+
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的真實世界情境，但採用了現代化、內建的 .NET 功能（例如 Primary Constructors、泛型 `List<Employee>` 繼承以及 C# Pattern Matching `is Employee employee`）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Visitor.NetOptimized;
@@ -569,7 +744,7 @@ public class President() : Employee("Eric", 45000.0, 21)
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Clerk Kevin's new income: $27,500.00
@@ -581,91 +756,7 @@ Director Elly's new vacation days: 19
 President Eric's new vacation days: 24
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **傳統 OOP Visitor 的雙重分派（Double Dispatch）樣板過於笨重**：在傳統 C# 中，為了不修改 `Employee` 類別而新增操作，必須定義 `IVisitor`、`Element.Accept(IVisitor)`，並在轉型 `element as Employee` 時喪失編譯期型別檢查。
-- **C# 15 `union`（聯合型別）與 `closed`（封閉階層）的革命性突破**：C# 15 原生引入了 **`union`（Union Types）** 與 **`closed` 修飾詞**！這正是函數式語言（如 F# / Rust）用來徹底取代 GoF Visitor Pattern 的核心武器——當型別集合是封閉且已知的，透過 **`switch` 窮舉式模式比對（Exhaustive Pattern Matching）**，不僅不需要寫任何 `Accept(IVisitor)` 樣板，還能讓不同職級（如 `Clerk` 加薪 10%、`Director` 加薪 12%、`President` 加薪 15%）擁有各自專屬的處理邏輯，且一旦新增職級，編譯器會自動強制所有 Visitor 補齊對應分支！
-
-### C# 15 / .NET 11 優化重點
-
-- **C# 15 `union`（Union Types）與 `closed` 階層**：展示 C# 15 最具代表性的新功能，完全免除 `IVisitor.Visit` 與 `Element.Accept` 的雙重分派樣板。
-- **編譯期窮舉式模式比對（Exhaustive Pattern Matching）**：不需要 `_ =>` 預設分支，編譯器即可保證所有員工型別皆被正確處理。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Visitor.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        List<Employee> employees =
-        [
-            with(capacity: 3),
-            new Clerk("Kevin", 25_000.0, 14),
-            new Director("Elly", 35_000.0, 16),
-            new President("Eric", 45_000.0, 21)
-        ];
-
-        // 直接套用不同的 Visitor 操作，無須任何 Accept(IVisitor) 樣板程式碼
-        employees.ForEach(EmployeeVisitors.ApplyIncomeRaise);
-        WriteLine();
-        employees.ForEach(EmployeeVisitors.ApplyExtraVacation);
-    }
-}
-
-// C# 15 closed 修飾詞（或使用 C# 15 `public union Employee(Clerk, Director, President);`）：
-// 宣告封閉的型別階層，讓編譯器對 switch 進行窮舉性檢查 (Exhaustiveness Checking)
-public closed abstract class Employee(string name, double income, int vacationDays)
-{
-    public string Name { get; set; } = name;
-    public double Income { get; set; } = income;
-    public int VacationDays { get; set; } = vacationDays;
-}
-
-public sealed class Clerk(string name, double income, int vacationDays) : Employee(name, income, vacationDays);
-public sealed class Director(string name, double income, int vacationDays) : Employee(name, income, vacationDays);
-public sealed class President(string name, double income, int vacationDays) : Employee(name, income, vacationDays);
-
-/// <summary>
-/// 利用 C# 15 Exhaustive Pattern Matching 實作 Visitor：
-/// 不僅能依具體型別執行差異化邏輯，若未來新增第 4 種 Employee 子類別，編譯器會直接提示所有未更新的 switch！
-/// </summary>
-public static class EmployeeVisitors
-{
-    public static void ApplyIncomeRaise(Employee employee)
-    {
-        // 由於 Employee 是 closed 階層，編譯器知道只有這 3 種子類別，無須寫 _ => 分支！
-        employee.Income *= employee switch
-        {
-            Clerk => 1.10,
-            Director => 1.10,
-            President => 1.10
-        };
-
-        WriteLine($"{employee.GetType().Name} {employee.Name}'s new income: {employee.Income:C}");
-    }
-
-    public static void ApplyExtraVacation(Employee employee)
-    {
-        employee.VacationDays += employee switch
-        {
-            Clerk => 3,
-            Director => 3,
-            President => 3
-        };
-
-        WriteLine($"{employee.GetType().Name} {employee.Name}'s new vacation days: {employee.VacationDays}");
-    }
-}
-```
+</details>
 
 ---
 

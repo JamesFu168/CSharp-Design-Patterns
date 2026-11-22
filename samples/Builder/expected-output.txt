@@ -1,0 +1,4 @@
+Scooter: frame=Scooter Frame, engine=50 cc, wheels=2, doors=0
+Car: frame=Car Frame, engine=2500 cc, wheels=4, doors=4
+Trike: frame=Trike Frame, engine=125 cc, wheels=3, doors=0
+Build failed: Frame is required.

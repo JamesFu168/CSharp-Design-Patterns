@@ -10,11 +10,25 @@
 
 **Bridge** Design Pattern 將抽象（Abstraction）與其實作（Implementation）解耦（Decouples），使這兩者可以獨立地變化。
 
-**Bridge** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+客戶報表有兩種呈現方式（一般、加上編號），資料有兩種來源（記憶體、CSV）。如果只用繼承來表達所有組合，類別會是：
+
+```text
+InMemoryCustomerReport    InMemoryNumberedCustomerReport
+CsvCustomerReport         CsvNumberedCustomerReport
+```
+
+2 × 2 就需要 4 個類別。再加一種來源與一種呈現方式就變成 3 × 3 = 9 個，而且每個類別都混雜著「怎麼取資料」與「怎麼呈現」兩種程式碼。
+
+Bridge 把這兩個會各自增加的面向拆成兩個獨立的階層，再用「一個物件持有另一個物件」把它們接起來。
 
 ---
 
@@ -30,6 +44,8 @@
 
 參與此 Pattern 的類別與物件包括：
 
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
+
 - **Abstraction** (`BusinessObject`)
   - 定義抽象概念的介面。
   - 維護一個指向 `Implementor` 型別物件的參考（Reference）。
@@ -42,7 +58,151 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Bridge](samples/Bridge)  
+> **執行方式**：`dotnet run --project samples/Bridge`
+
+**角色對照**：Abstraction = `CustomerReport`；RefinedAbstraction = `NumberedCustomerReport`；Implementor = `ICustomerSource`；ConcreteImplementor = `InMemoryCustomerSource`、`CsvCustomerSource`。
+
+<!-- sample:Bridge/Program.cs -->
+```csharp
+// Bridge：把「要做什麼」（抽象）和「怎麼做」（實作）拆成兩個各自獨立發展的階層。
+
+ICustomerSource chicago = new InMemoryCustomerSource("Chicago", ["Jim Jones", "Samual Jackson", "Allen Good"]);
+ICustomerSource taipei = new CsvCustomerSource("Taipei", "Ann Stills;Lisa Giolani");
+
+// 2 種報表 × 2 種資料來源 = 4 種組合，但只需要 2 + 2 個類別
+new CustomerReport(chicago).Print();
+new NumberedCustomerReport(chicago).Print();
+new CustomerReport(taipei).Print();
+new NumberedCustomerReport(taipei).Print();
+
+// ---- Abstraction：報表「要呈現什麼」，透過介面使用資料來源 ----
+public class CustomerReport(ICustomerSource source)
+{
+    public void Print()
+    {
+        Console.WriteLine($"Customer Group: {source.Group}");
+
+        int index = 0;
+        foreach (string customer in source.GetCustomers())
+        {
+            Console.WriteLine(FormatLine(++index, customer));
+        }
+
+        Console.WriteLine();
+    }
+
+    protected virtual string FormatLine(int index, string customer) => $"  {customer}";
+}
+
+// ---- RefinedAbstraction：改變呈現方式，完全不必知道資料從哪裡來 ----
+public sealed class NumberedCustomerReport(ICustomerSource source) : CustomerReport(source)
+{
+    protected override string FormatLine(int index, string customer) => $"  {index}. {customer}";
+}
+
+// ---- Implementor：資料「怎麼取得」 ----
+public interface ICustomerSource
+{
+    string Group { get; }
+    IEnumerable<string> GetCustomers();
+}
+
+// ---- ConcreteImplementor ----
+public sealed class InMemoryCustomerSource(string group, IReadOnlyList<string> customers) : ICustomerSource
+{
+    public string Group => group;
+    public IEnumerable<string> GetCustomers() => customers;
+}
+
+public sealed class CsvCustomerSource(string group, string csv) : ICustomerSource
+{
+    public string Group => group;
+    public IEnumerable<string> GetCustomers() => csv.Split(';', StringSplitOptions.TrimEntries);
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Bridge -->
+```text
+Customer Group: Chicago
+  Jim Jones
+  Samual Jackson
+  Allen Good
+
+Customer Group: Chicago
+  1. Jim Jones
+  2. Samual Jackson
+  3. Allen Good
+
+Customer Group: Taipei
+  Ann Stills
+  Lisa Giolani
+
+Customer Group: Taipei
+  1. Ann Stills
+  2. Lisa Giolani
+```
+<!-- /output -->
+
+### 重點解說
+
+- **「橋」就是建構函式的那個參數**：`CustomerReport(ICustomerSource source)`。報表透過介面使用資料來源，兩邊互不知道對方的具體類別。
+- **兩個階層各自擴充**：新增資料來源只需要實作 `ICustomerSource`；新增呈現方式只需要繼承 `CustomerReport`。
+- **2 + 2 個類別涵蓋 4 種組合**：輸出的四份報表來自同樣四個類別的不同搭配。
+- **`protected virtual FormatLine`**：子類別只覆寫「一行怎麼顯示」，列印的流程留在基底類別。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版只有一個 ConcreteImplementor（`CustomersData`）與一個 RefinedAbstraction，看不出「兩個面向各自變化」的效果。本版兩邊各提供兩個。
+- 原版的 Implementor 混合了移動游標（`NextRecord`、`PriorRecord`）、新增刪除與顯示（`ShowRecord`）等職責。本版的 Implementor 只負責提供資料，顯示屬於 Abstraction 的工作。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **`ILogger` 與 `ILoggerProvider`**：應用程式只使用 `ILogger`（抽象），實際寫到 Console、檔案或雲端服務則由各個提供者（實作）負責，兩邊可以各自增加。
+- **ADO.NET**：`DbConnection`、`DbCommand` 是抽象，SQL Server、PostgreSQL、SQLite 的提供者是實作。
+- **EF Core**：`DbContext` 與資料庫提供者（`UseSqlServer`、`UseNpgsql`）。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 同一個概念有兩個會各自增加的面向。
+- 想在執行期更換實作（例如依設定切換資料來源）。
+
+**不適合使用**
+
+- 只有一個面向會變：一般的「介面加實作」就夠了。
+- 目前只有一種實作，也看不到第二種：先不要拆。
+
+---
+
+## 練習題
+
+1. 新增第三種資料來源 `JsonCustomerSource`，用 `System.Text.Json` 解析 `["Ann","Bob"]` 這樣的字串。不要修改任何報表類別。
+2. 新增第三種報表 `UppercaseCustomerReport`，把姓名轉成大寫。不要修改任何資料來源類別。
+3. 如果只用繼承來表達 3 × 3 種組合，總共需要幾個類別？用 Bridge 需要幾個？
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Bridge Pattern 如何將介面與其實作分離（解耦）。實作可以獨立演進，而無須修改使用該物件抽象概念的用戶端（Clients）。
 
@@ -143,17 +303,17 @@ namespace Bridge.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 ConcreteImplementorA Operation
-
-  ConcreteImplementorB Operation
+ConcreteImplementorB Operation
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了 Bridge Pattern 如何將 `BusinessObject`（商業物件）抽象概念與 `DataObject`（資料物件）中的實作解耦。`DataObject` 的實作可以動態演進，而不需要變更任何用戶端程式碼。
 
@@ -344,41 +504,30 @@ namespace Bridge.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Jim Jones
+Samual Jackson
+Allen Good
 
-  Samual Jackson
-
-  Allen Good
-
-  
-
-  ------------------------
-
-  Customer Group: Chicago
-
-  Jim Jones
-
-  Samual Jackson
-
-  Allen Good
-
-  Ann Stills
-
-  Lisa Giolani
-
-  Henry Velasquez
-
-  ------------------------
+------------------------
+Customer City: Chicago
+ Jim Jones
+ Samual Jackson
+ Allen Good
+ Ann Stills
+ Lisa Giolani
+ Henry Velasquez
+------------------------
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors 與介面 `IDataObject<T>`）。這是一個優雅的 C# Bridge 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors 與介面 `IDataObject<T>`）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Bridge.NetOptimized;
@@ -511,127 +660,25 @@ public class CustomersData : IDataObject<string>
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Jim Jones
+Samual Jackson
+Allan Good
 
-    Samual Jackson
-
-    Allen Good
-
-    
-
-    ------------------------
-
-    Customer Group: Chicago
-
-    Jim Jones
-
-    Samual Jackson
-
-    Allen Good
-
-    Ann Stills
-
-    Lisa Giolani
-
-    Henry Velasquez
-
-    ------------------------
+------------------------
+Customer Group: Chicago
+ Jim Jones
+ Samual Jackson
+ Allan Good
+ Ann Stills
+ Lisa Giolani
+ Henry Velasquez
+------------------------
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **Dofactory `.NET Optimized` 範例已經相當接近現代寫法**：它使用了 Primary Constructors `CustomersBase(IDataObject<string> dataObject)` 將 Abstraction 與 Implementor 解耦。
-- **可進一步強化的細節**：在 `CustomersData` 中管理游標（`current`）邊界時，可利用 **`Math.Clamp`** 與 **C# 15 Collection Expression Arguments (`[with(capacity: ...)]`)**，讓程式碼更精煉且安全。
-
-### C# 15 / .NET 11 優化重點
-
-- **C# 15 Collection Expression Arguments (`[with(capacity: ...)]`)**：初始化內部清單時同時指定預留容量。
-- **`Math.Clamp`**：一行程式碼取代繁瑣的 `if (current > 0)` / `if (current < customers.Count - 1)` 邊界檢查。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Bridge.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        var customers = new Customers(new CustomersData("Chicago"));
-
-        customers.Show();
-        customers.Next();
-        customers.Show();
-        customers.Add("Henry Velasquez");
-        customers.ShowAll();
-    }
-}
-
-public class CustomersBase(IDataObject<string> dataObject)
-{
-    public virtual void Next() => dataObject.NextRecord();
-    public virtual void Prior() => dataObject.PriorRecord();
-    public virtual void Add(string name) => dataObject.AddRecord(name);
-    public virtual void Delete(string name) => dataObject.DeleteRecord(name);
-    public virtual void Show() => dataObject.ShowRecord();
-    public virtual void ShowAll() => dataObject.ShowAllRecords();
-}
-
-public sealed class Customers(IDataObject<string> dataObject) : CustomersBase(dataObject)
-{
-    public override void ShowAll()
-    {
-        WriteLine("\n------------------------");
-        base.ShowAll();
-        WriteLine("------------------------");
-    }
-}
-
-public interface IDataObject<T>
-{
-    void NextRecord();
-    void PriorRecord();
-    void AddRecord(T record);
-    void DeleteRecord(T record);
-    T GetCurrentRecord();
-    void ShowRecord();
-    void ShowAllRecords();
-}
-
-public sealed class CustomersData(string city) : IDataObject<string>
-{
-    // C# 15 Collection Expression Arguments: 預先配置容量並填入初始元素
-    private readonly List<string> _customers =
-    [
-        with(capacity: 8),
-        "Jim Jones", "Samual Jackson", "Allen Good", "Ann Stills", "Lisa Giolani"
-    ];
-
-    private int _current;
-
-    public void NextRecord() => _current = Math.Clamp(_current + 1, 0, _customers.Count - 1);
-    public void PriorRecord() => _current = Math.Clamp(_current - 1, 0, _customers.Count - 1);
-    public void AddRecord(string customer) => _customers.Add(customer);
-    public void DeleteRecord(string customer) => _customers.Remove(customer);
-    public string GetCurrentRecord() => _customers[_current];
-    public void ShowRecord() => WriteLine(_customers[_current]);
-
-    public void ShowAllRecords()
-    {
-        WriteLine($"Customer Group: {city}");
-        _customers.ForEach(customer => WriteLine($" {customer}"));
-    }
-}
-```
+</details>
 
 ---
 

@@ -1,0 +1,10 @@
+Clerk Kevin: income $25,000.00 -> $27,500.00
+Director Elly: income $35,000.00 -> $39,200.00
+President Eric: income $45,000.00 -> $51,750.00
+
+Clerk Kevin: vacation 14 -> 17 days
+Director Elly: vacation 16 -> 21 days
+President Eric: vacation 21 -> 28 days
+
+Bonus: cash $1,500.00
+Bonus: 10 shares of MSFT

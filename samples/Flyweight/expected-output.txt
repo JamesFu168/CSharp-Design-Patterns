@@ -1,0 +1,10 @@
+A (pointsize 11, glyph 100x120)
+A (pointsize 12, glyph 100x120)
+Z (pointsize 13, glyph 100x120)
+Z (pointsize 14, glyph 100x120)
+B (pointsize 15, glyph 100x120)
+B (pointsize 16, glyph 100x120)
+Z (pointsize 17, glyph 100x120)
+B (pointsize 18, glyph 100x120)
+Characters drawn: 8, glyph objects created: 3
+Same instance reused: True

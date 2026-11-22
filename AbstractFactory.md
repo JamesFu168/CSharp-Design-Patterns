@@ -10,11 +10,30 @@
 
 **Abstract Factory** Design Pattern 提供一個介面（Interface），用於建立相關或相依物件的家族，而無須指定它們的具體類別（Concrete Classes）。
 
-**Abstract Factory** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+動物世界裡，非洲有牛羚與獅子，美洲有野牛與狼。如果讓使用這些動物的程式碼自己決定要建立哪一個類別，會寫成這樣：
+
+```csharp
+// 示意：呼叫端自己判斷要 new 哪一個類別
+IHerbivore herbivore = continent == "Africa" ? new Wildebeest() : new Bison();
+ICarnivore carnivore = continent == "Africa" ? new Lion() : new Wolf();
+```
+
+這種寫法有三個問題：
+
+- 每個需要建立動物的地方，都要重複一次「是哪一洲」的判斷。
+- 新增一洲時，必須找出所有判斷的地方逐一修改。
+- 沒有任何機制能防止「獅子配野牛」這種不同家族混用的錯誤。
+
+Abstract Factory 的做法是：把「同一個家族的物件」交給同一個工廠建立，呼叫端只要拿到工廠，就一定拿到整組互相搭配的產品。
 
 ---
 
@@ -30,6 +49,8 @@
 
 參與此 Pattern 的類別與物件包括：
 
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
+
 - **AbstractFactory** (`ContinentFactory`)
   - 宣告用於建立抽象產品（Abstract Products）之操作的介面。
 - **ConcreteFactory** (`AfricaFactory`, `AmericaFactory`)
@@ -44,7 +65,166 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/AbstractFactory](samples/AbstractFactory)  
+> **執行方式**：`dotnet run --project samples/AbstractFactory`
+
+**角色對照**：AbstractFactory = `IContinentFactory`；ConcreteFactory = `AfricaFactory`、`AmericaFactory`；AbstractProduct = `IHerbivore`、`ICarnivore`；ConcreteProduct = `Wildebeest`、`Bison`、`Lion`、`Wolf`；Client = `AnimalWorld`。
+
+<!-- sample:AbstractFactory/Program.cs -->
+```csharp
+// Abstract Factory：一次建立「一整組互相搭配的物件」，並保證不會混用不同家族的產品。
+
+// 要用哪一個產品家族，到執行期才決定（實務上常來自設定檔或使用者的選擇）
+string[] continents = ["Africa", "America"];
+
+foreach (string continent in continents)
+{
+    IContinentFactory factory = ContinentFactories.Create(continent);
+    var world = new AnimalWorld(factory);
+    world.RunFoodChain();
+}
+
+// ---- AbstractFactory：宣告「這個家族有哪些產品」 ----
+public interface IContinentFactory
+{
+    IHerbivore CreateHerbivore();
+    ICarnivore CreateCarnivore();
+}
+
+// ---- ConcreteFactory：每個工廠只生產同一洲的動物 ----
+public sealed class AfricaFactory : IContinentFactory
+{
+    public IHerbivore CreateHerbivore() => new Wildebeest();
+    public ICarnivore CreateCarnivore() => new Lion();
+}
+
+public sealed class AmericaFactory : IContinentFactory
+{
+    public IHerbivore CreateHerbivore() => new Bison();
+    public ICarnivore CreateCarnivore() => new Wolf();
+}
+
+// ---- AbstractProduct ----
+public interface IHerbivore
+{
+    string Name { get; }
+}
+
+public interface ICarnivore
+{
+    string Name { get; }
+    string Eat(IHerbivore prey);
+}
+
+// ---- ConcreteProduct ----
+public sealed class Wildebeest : IHerbivore
+{
+    public string Name => "Wildebeest";
+}
+
+public sealed class Bison : IHerbivore
+{
+    public string Name => "Bison";
+}
+
+public sealed class Lion : ICarnivore
+{
+    public string Name => "Lion";
+    public string Eat(IHerbivore prey) => $"{Name} eats {prey.Name}";
+}
+
+public sealed class Wolf : ICarnivore
+{
+    public string Name => "Wolf";
+    public string Eat(IHerbivore prey) => $"{Name} eats {prey.Name}";
+}
+
+// ---- Client：只認得介面，完全不知道自己拿到的是哪一洲的動物 ----
+public sealed class AnimalWorld(IContinentFactory factory)
+{
+    private readonly IHerbivore _herbivore = factory.CreateHerbivore();
+    private readonly ICarnivore _carnivore = factory.CreateCarnivore();
+
+    public void RunFoodChain() => Console.WriteLine(_carnivore.Eat(_herbivore));
+}
+
+// 「名稱 → 工廠」的對應集中在一個地方，新增家族時只需要改這裡
+public static class ContinentFactories
+{
+    public static IContinentFactory Create(string continent) => continent switch
+    {
+        "Africa" => new AfricaFactory(),
+        "America" => new AmericaFactory(),
+        _ => throw new ArgumentException($"Unknown continent: {continent}", nameof(continent)),
+    };
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:AbstractFactory -->
+```text
+Lion eats Wildebeest
+Wolf eats Bison
+```
+<!-- /output -->
+
+### 重點解說
+
+- **Client 只相依介面**：`AnimalWorld` 的程式碼裡沒有出現任何具體的動物或工廠類別，換一個工廠就換掉整組產品。
+- **一致性由工廠保證**：`AfricaFactory` 的兩個方法只會回傳非洲的動物，不可能出現混搭。
+- **主要建構函式（Primary Constructor）**：`AnimalWorld(IContinentFactory factory)` 把建構函式參數寫在類別名稱後面，參數可以直接拿來初始化欄位。
+- **`switch` 運算式集中對應關係**：「名稱 → 工廠」只寫在 `ContinentFactories.Create` 一處；遇到不認識的名稱時丟出例外，而不是回傳 `null` 讓錯誤延後發生。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版 .NET Optimized 使用泛型 `AnimalWorld<T> where T : IContinentFactory, new()`，產品家族在編譯期就固定了。本版改以介面傳入工廠，保留「執行期才決定用哪一個家族」的能力，這才是 Abstract Factory 最常見的用途。
+- 原版以 `GetType().Name` 取得動物名稱，類別一旦改名，輸出就跟著改變。本版改用明確的 `Name` 屬性。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **`System.Data.Common.DbProviderFactory`**：`CreateConnection()`、`CreateCommand()`、`CreateParameter()` 會建立同一個資料庫廠商、彼此相容的一組 ADO.NET 物件；`SqlClientFactory`、`NpgsqlFactory` 就是 ConcreteFactory。
+- **相依性注入（DI）**：把 `IContinentFactory` 註冊進容器，由設定決定實際的實作。需要依名稱同時保留多個實作時，可以使用 Keyed Services（`AddKeyedSingleton` 與 `[FromKeyedServices]`）。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 產品是「成組」出現，而且必須互相搭配，例如同一個資料庫廠商的連線與命令、同一個佈景主題的按鈕與視窗。
+- 需要依設定或在執行期切換整組實作。
+
+**不適合使用**
+
+- 只有一種產品：用 Factory Method，或直接注入該產品的介面即可。
+- 家族只有一個而且看不到第二個：多一層工廠介面只是負擔。
+- 產品種類經常增加：每新增一種產品（例如雜食動物），所有工廠都必須跟著修改。
+
+---
+
+## 練習題
+
+1. 新增 `AustraliaFactory`，生產袋鼠（`Kangaroo`）與澳洲野犬（`Dingo`）。確認除了新增類別與 `ContinentFactories.Create` 的一行之外，不需要修改其他程式碼。
+2. 在工廠介面加上第三種產品 `IOmnivore`，數一數需要修改幾個類別。這就是這個模式的代價。
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Abstract Factory Pattern 如何建立平行階層的物件。物件的建立已被抽象化，因此在用戶端（Client）程式碼中不需要寫死（Hard-coded）類別名稱。
 
@@ -212,17 +392,17 @@ namespace DoFactory.GangOfFour.Abstract.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 ProductB1 interacts with ProductA1
-
-  ProductB2 interacts with ProductA2
+ProductB2 interacts with ProductA2
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了在電腦遊戲中使用不同的工廠來建立不同的動物世界。雖然由各洲（Continent）工廠所建立的動物不同，但動物之間的互動方式依然保持一致。
 
@@ -393,19 +573,19 @@ namespace DoFactory.GangOfFour.Abstract.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Lion eats Wildebeest
-
-  Wolf eats Bison
+Wolf eats Bison
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如泛型 `AnimalWorld<T>`、介面與運算式主體成員）。這是一個優雅的 C# Abstract Factory 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如泛型 `AnimalWorld<T>`、介面與運算式主體成員）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Abstract.NetOptimized;
@@ -546,100 +726,14 @@ public class AnimalWorld<T> : IAnimalWorld where T : IContinentFactory, new()
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Lion eats Wildebeest
-
-    Wolf eats Bison
+Wolf eats Bison
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **`where T : new()` 的反射開銷與限制**：Dofactory 的 `.NET Optimized` 版本使用 `AnimalWorld<T> where T : IContinentFactory, new()`，在建構函式中執行 `new T()`。在舊式泛型中，`new T()` 底層會透過 `Activator.CreateInstance` 產生呼叫開銷，且無法強制工廠本身為無狀態（Stateless）或傳遞建構參數。
-- **缺乏相依性注入（DI）整合**：現代 .NET 應用程式很少在 Client 內部直接 `new` 出工廠，而是透過 DI 容器或 C# 的 **Static Abstract Interface Members（靜態抽象介面成員）** 在編譯期完成靜態分派（Zero-allocation）。
-
-### C# 15 / .NET 11 優化重點
-
-- **Static Abstract Interface Members**：在 `IContinentFactory` 定義 `static abstract` 方法，完全不需實例化工廠物件（零記憶體配置），並在編譯期直接內聯（Inline）呼叫。
-- **`closed` 繼承階層（C# 15）**：將抽象產品標記為 `closed` 或使用 `record`，確保產品家族的型別安全。
-- **.NET 11 DI Keyed Services 實務對照**：在 ASP.NET Core / .NET 11 中，也可透過 `services.AddKeyedSingleton<IContinentFactory, Africa>("Africa")` 動態切換產品家族。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace AbstractFactory.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        // 編譯期靜態分派：無須 new Africa() 工廠實例，達成零額外配置 (Zero-allocation)
-        AnimalWorld.RunFoodChain<Africa>();
-        AnimalWorld.RunFoodChain<America>();
-    }
-}
-
-/// <summary>
-/// 利用 C# Static Abstract Interface Members 定義抽象工廠介面
-/// </summary>
-public interface IContinentFactory
-{
-    static abstract IHerbivore CreateHerbivore();
-    static abstract ICarnivore CreateCarnivore();
-}
-
-public sealed class Africa : IContinentFactory
-{
-    public static IHerbivore CreateHerbivore() => new Wildebeest();
-    public static ICarnivore CreateCarnivore() => new Lion();
-}
-
-public sealed class America : IContinentFactory
-{
-    public static IHerbivore CreateHerbivore() => new Bison();
-    public static ICarnivore CreateCarnivore() => new Wolf();
-}
-
-public interface IHerbivore { string Name => GetType().Name; }
-
-public interface ICarnivore
-{
-    void Eat(IHerbivore herbivore);
-}
-
-public sealed record Wildebeest : IHerbivore;
-public sealed record Bison : IHerbivore;
-
-public sealed record Lion : ICarnivore
-{
-    public void Eat(IHerbivore h) => WriteLine($"{nameof(Lion)} eats {h.Name}");
-}
-
-public sealed record Wolf : ICarnivore
-{
-    public void Eat(IHerbivore h) => WriteLine($"{nameof(Wolf)} eats {h.Name}");
-}
-
-/// <summary>
-/// Client 端直接透過泛型型別參數呼叫靜態工廠方法
-/// </summary>
-public static class AnimalWorld
-{
-    public static void RunFoodChain<TFactory>() where TFactory : IContinentFactory
-    {
-        var carnivore = TFactory.CreateCarnivore();
-        var herbivore = TFactory.CreateHerbivore();
-        carnivore.Eat(herbivore);
-    }
-}
-```
+</details>
 
 ---
 

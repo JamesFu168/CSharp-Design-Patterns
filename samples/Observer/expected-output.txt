@@ -1,0 +1,6 @@
+Notified Sorros: IBM changed from $120.00 to $120.10
+Notified Berkshire: IBM changed from $120.00 to $120.10
+Notified Sorros: IBM changed from $120.10 to $121.00
+Notified Berkshire: IBM changed from $120.10 to $121.00
+Berkshire unsubscribed.
+Notified Sorros: IBM changed from $121.00 to $120.50

@@ -1,0 +1,9 @@
+Same instance: True
+Dispatch request to: ServerI (120.14.220.18)
+Dispatch request to: ServerII (120.14.220.19)
+Dispatch request to: ServerIII (120.14.220.20)
+Dispatch request to: ServerIV (120.14.220.21)
+Dispatch request to: ServerV (120.14.220.22)
+Dispatch request to: ServerI (120.14.220.18)
+Same instance from DI: True
+Dispatch request to: ServerI

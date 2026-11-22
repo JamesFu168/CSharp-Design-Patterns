@@ -1,0 +1,15 @@
+[connect]
+Categories ----
+  Red
+  Green
+  Blue
+  Yellow
+  Purple
+[disconnect]
+
+[connect]
+Products ----
+  Car    $ 25,000.00
+  Bike   $    480.00
+  Boat   $ 12,500.00
+[disconnect]

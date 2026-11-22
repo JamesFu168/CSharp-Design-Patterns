@@ -1,0 +1,13 @@
+Value =   100 (after + 100)
+Value =    50 (after - 50)
+Value =   500 (after * 10)
+Value =   250 (after / 2)
+---- Undo 4 levels
+Value =   500 (after * 2)
+Value =    50 (after / 10)
+Value =   100 (after + 50)
+Value =     0 (after - 100)
+---- Redo 3 levels
+Value =   100 (after + 100)
+Value =    50 (after - 50)
+Value =   500 (after * 10)

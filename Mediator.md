@@ -10,11 +10,18 @@
 
 **Mediator** Design Pattern 定義了一個物件，用來封裝一組物件之間的互動方式。Mediator 藉由避免物件之間明確地互相參考（Referring），促進了鬆散耦合（Loose Coupling），並讓你可以獨立地改變它們之間的互動。
 
-**Mediator** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
-- [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
-- [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
-- [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
-- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
+本篇分成兩個部分：
+
+- **[現代 C# 實作](#現代-c-實作-net-11--c-15)**：可以直接建置與執行的範例專案，建議由此開始閱讀。
+- **[附錄：Dofactory 原版範例](#附錄dofactory-原版範例)**：Structural、Real-world、.NET Optimized 三種原版程式碼，作為對照。
+
+---
+
+## 問題情境 (Problem)
+
+聊天室裡，如果每個參與者都直接持有其他人的參考並互相呼叫，5 個人就有 20 條單向的關係；每加入一個人，所有既有的參與者都要認識他。而且「誰可以傳訊息給誰」這類規則會散落在每個參與者的程式碼裡。
+
+Mediator 引入一個中介者：所有參與者只認識中介者，訊息都交給它轉送。參與者之間不再互相參考，互動的規則也集中在中介者一處。
 
 ---
 
@@ -30,6 +37,8 @@
 
 參與此 Pattern 的類別與物件包括：
 
+> 括號內是 Dofactory 原版範例（見附錄）使用的類別名稱。現代 C# 實作中各角色對應的型別，請見下一節開頭的「角色對照」。
+
 - **Mediator** (`IChatroom`)
   - 定義一個用於與各個 `Colleague`（同仁）物件進行通訊的介面。
 - **ConcreteMediator** (`Chatroom`)
@@ -41,7 +50,181 @@
 
 ---
 
-## Structural code in C# (結構化程式碼)
+## 現代 C# 實作 (.NET 11 / C# 15)
+
+> **範例專案**：[samples/Mediator](samples/Mediator)  
+> **執行方式**：`dotnet run --project samples/Mediator`
+
+**角色對照**：Mediator = `IChatroom`；ConcreteMediator = `Chatroom`；Colleague = `Participant`；ConcreteColleague = `Beatle`、`NonBeatle`。
+
+<!-- sample:Mediator/Program.cs -->
+```csharp
+// Mediator：物件之間不直接互相呼叫，而是都透過一個「中介者」溝通，彼此就不必互相認識。
+
+var chatroom = new Chatroom();
+
+Participant george = new Beatle("George");
+Participant paul = new Beatle("Paul");
+Participant ringo = new Beatle("Ringo");
+Participant john = new Beatle("John");
+Participant yoko = new NonBeatle("Yoko");
+
+chatroom.Join(george, paul, ringo, john, yoko);
+
+yoko.Send("John", "Hi John!");
+paul.Send("Ringo", "All you need is love");
+ringo.Send("George", "My sweet Lord");
+john.Send("Yoko", "My sweet love");
+
+// 收件人不在聊天室：由 Mediator 統一決定怎麼處理，而不是每個參與者各寫一次
+paul.Send("Pete", "Are you there?");
+
+// ---- Mediator ----
+public interface IChatroom
+{
+    void Join(params Participant[] participants);
+    void Send(string from, string to, string message);
+}
+
+// ---- ConcreteMediator：所有「誰可以傳給誰、怎麼傳」的規則都集中在這裡 ----
+public sealed class Chatroom : IChatroom
+{
+    private readonly Dictionary<string, Participant> _participants = new(StringComparer.OrdinalIgnoreCase);
+
+    public void Join(params Participant[] participants)
+    {
+        foreach (Participant participant in participants)
+        {
+            _participants[participant.Name] = participant;
+            participant.Chatroom = this;
+        }
+    }
+
+    public void Send(string from, string to, string message)
+    {
+        // 用 TryGetValue 查詢：索引子 _participants[to] 在找不到時會直接丟出 KeyNotFoundException
+        if (_participants.TryGetValue(to, out Participant? recipient))
+        {
+            recipient.Receive(from, message);
+        }
+        else
+        {
+            Console.WriteLine($"[Chatroom] '{to}' is not in the room; message from {from} was not delivered.");
+        }
+    }
+}
+
+// ---- Colleague：只認得 Mediator，不認得其他參與者 ----
+public abstract class Participant(string name)
+{
+    public string Name => name;
+
+    // 由 Chatroom.Join 設定
+    public IChatroom? Chatroom { get; set; }
+
+    public void Send(string to, string message)
+    {
+        if (Chatroom is null)
+        {
+            throw new InvalidOperationException($"{Name} has not joined a chatroom.");
+        }
+
+        Chatroom.Send(Name, to, message);
+    }
+
+    public virtual void Receive(string from, string message) =>
+        Console.WriteLine($"{from} to {Name}: '{message}'");
+}
+
+// ---- ConcreteColleague ----
+public sealed class Beatle(string name) : Participant(name)
+{
+    public override void Receive(string from, string message)
+    {
+        Console.Write("To a Beatle: ");
+        base.Receive(from, message);
+    }
+}
+
+public sealed class NonBeatle(string name) : Participant(name)
+{
+    public override void Receive(string from, string message)
+    {
+        Console.Write("To a non-Beatle: ");
+        base.Receive(from, message);
+    }
+}
+```
+<!-- /sample -->
+
+### 輸出結果 (Output)
+
+<!-- output:Mediator -->
+```text
+To a Beatle: Yoko to John: 'Hi John!'
+To a Beatle: Paul to Ringo: 'All you need is love'
+To a Beatle: Ringo to George: 'My sweet Lord'
+To a non-Beatle: John to Yoko: 'My sweet love'
+[Chatroom] 'Pete' is not in the room; message from Paul was not delivered.
+```
+<!-- /output -->
+
+### 重點解說
+
+- **參與者只認得 `IChatroom`**：`Participant` 的程式碼裡沒有任何其他參與者的參考，傳訊息時只提供對方的名字。
+- **互動規則集中**：「收件人不在聊天室」的處理只寫在 `Chatroom.Send` 一處（輸出最後一行）。
+- **`TryGetValue`**：一次完成「檢查是否存在」與「取出」。直接用索引子 `_participants[to]`，在找不到時會丟出 `KeyNotFoundException`。
+- **`StringComparer.OrdinalIgnoreCase`**：建立字典時指定比較方式，查詢名字時不分大小寫。
+- **`params`**：`Join(george, paul, ringo)` 可以一次傳入任意數量的參與者。
+
+---
+
+## 與 Dofactory 原版的差異
+
+- 原版的 `Send` 以 `participants[to]` 取出收件人，再檢查是否為 `null`。但 `Dictionary` 的索引子在找不到鍵時會丟出 `KeyNotFoundException`，不會回傳 `null`，所以那個檢查永遠不會生效，傳訊息給不存在的人會讓程式直接中止。本版改用 `TryGetValue`。
+- 原版的參與者還沒加入聊天室就呼叫 `Send`，會發生 `NullReferenceException`。本版丟出說明原因的 `InvalidOperationException`。
+
+---
+
+## .NET 中的對應 (In .NET)
+
+- **MVVM 訊息匯流排**：CommunityToolkit.Mvvm 的 `IMessenger` 與 `WeakReferenceMessenger`，讓 ViewModel 之間不必互相參考。
+- **行程內的訊息派送**：MediatR、Wolverine 等套件，傳送端只送出一個請求物件，不需要知道由哪個處理常式負責（採用前請留意各套件的授權條款）。
+- **SignalR Hub**：用戶端之間不直接連線，所有訊息都經由 Hub 轉送。
+
+---
+
+## 何時該用、何時不該用
+
+**適合使用**
+
+- 多個物件之間有複雜的多對多互動。
+- 想把互動規則集中管理，而不是散落在每個物件裡。
+
+**不適合使用**
+
+- 只有兩三個物件互動：直接呼叫更清楚。
+- 中介者累積了太多規則，變成什麼都管的巨大類別。
+- 單純的一對多通知：那是 Observer。
+
+---
+
+## 練習題
+
+1. 加上 `Broadcast(string from, string message)`，把訊息傳給自己以外的所有人。
+2. 加上封鎖功能：Yoko 封鎖 Paul 之後，就收不到 Paul 的訊息。這條規則應該寫在 `Participant` 還是 `Chatroom`？為什麼？
+3. 新增一種參與者 `Moderator`，它會收到聊天室裡每一則訊息的副本。需要修改 `Beatle` 與 `NonBeatle` 嗎？
+
+---
+
+## 附錄：Dofactory 原版範例
+
+> 以下保留 Dofactory 網站的三種原版程式碼作為對照，點選標題即可展開。  
+> 輸出結果是實際編譯並執行這些程式碼所得（執行時移除了會等待按鍵的 `Console.ReadKey()`，文化特性為 en-US）。  
+> 原版使用較舊的 C# 寫法，撰寫新程式時請以上方的「現代 C# 實作」為準。
+
+<details>
+<summary><b>Structural code（結構化程式碼）</b></summary>
 
 這段結構化（Structural）程式碼示範了 Mediator Pattern 如何促進不同物件與不同物件型別之間的鬆散耦合通訊。Mediator（中介者）是一個中央樞紐（Central Hub），所有的互動都必須透過它來進行。
 
@@ -185,17 +368,17 @@ namespace Mediator.Structural
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 Colleague2 gets message: How are you?
-
-  Colleague1 gets message: Fine, thanks
+Colleague1 gets message: Fine, thanks
 ```
 
----
+</details>
 
-## Real-world code in C# (真實世界程式碼)
+<details>
+<summary><b>Real-world code（真實世界程式碼）</b></summary>
 
 這段真實世界（Real-world）程式碼示範了 Mediator Pattern 如何促進註冊到同一個聊天室（`Chatroom`）的不同參與者（`Participant`）之間的鬆散耦合通訊。`Chatroom` 是所有通訊發生的中央樞紐。目前在此範例中僅實作了一對一（One-to-one）通訊，但若要改為一對多（One-to-many）通訊也是非常容易的。
 
@@ -374,25 +557,22 @@ namespace Mediator.RealWorld
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 To a Beatle: Yoko to John: 'Hi John!'
-
-  To a Beatle: Paul to Ringo: 'All you need is love'
-
-  To a Beatle: Ringo to George: 'My sweet Lord'
-
-  To a Beatle: Paul to John: 'Can't buy me love'
-
-  To a non-Beatle: John to Yoko: 'My sweet love'
+To a Beatle: Paul to Ringo: 'All you need is love'
+To a Beatle: Ringo to George: 'My sweet Lord'
+To a Beatle: Paul to John: 'Can't buy me love'
+To a non-Beatle: John to Yoko: 'My sweet love'
 ```
 
----
+</details>
 
-## .NET Optimized code in C# (.NET 最佳化程式碼)
+<details>
+<summary><b>.NET Optimized code（.NET 最佳化程式碼）</b></summary>
 
-這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors 與字典索引）。這是一個優雅的 C# Mediator 解決方案。
+這段 .NET 最佳化（.NET Optimized）程式碼示範了與上述相同的邏輯，但採用了更現代化的 C# 與 .NET 功能（例如 Primary Constructors 與字典索引）。此版本的實作細節與限制，請見上方的〈與 Dofactory 原版的差異〉。
 
 ```csharp
 namespace Mediator.NetOptimized;
@@ -515,121 +695,17 @@ public class NonBeatle : Participant
 }
 ```
 
-### 輸出結果 (Output)
+**輸出結果 (Output)**
 
 ```text
 To a Beatle: Yoko to John: 'Hi John!'
-
-    To a Beatle: Paul to Ringo: 'All you need is love'
-
-    To a Beatle: Ringo to George: 'My sweet Lord'
-
-    To a Beatle: Paul to John: 'Can't buy me love'
-
-    To a non-Beatle: John to Yoko: 'My sweet love'
+To a Beatle: Paul to Ringo: 'All you need is love'
+To a Beatle: Ringo to George: 'My sweet Lord'
+To a Beatle: Paul to John: 'Can't buy me love'
+To a non-Beatle: John to Yoko: 'My sweet love'
 ```
 
----
-
-## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
-
-### 原版範例的限制與盲點
-
-- **防禦性不足的字典存取**：Dofactory 在 `Chatroom.Send` 中直接寫 `participants[to]?.Receive(from, message);`，若 `to` 不在字典中，C# 的 `Dictionary` 索引子會直接拋出 `KeyNotFoundException`（後面的 `?.` 根本不會發揮作用）。應使用 `TryGetValue`。
-- **在現代 .NET 11 實務中的對照**：在大型 .NET 應用程式中，Mediator Pattern 最常體現為 **In-process Messaging（如 MediatR / Wolverine / `System.Threading.Channels`）**，將 Request/Command 的發送者與 Handler 徹底解耦。
-
-### C# 15 / .NET 11 優化重點
-
-- **修正 `Dictionary` 索引子潛在的 `KeyNotFoundException`**：改用 `TryGetValue` 安全路由訊息。
-- **`params ReadOnlySpan<Participant>`**：讓 `Register` 支援一次註冊多位參與者而無須配置陣列。
-
-### 現代化 C# 15 / .NET 11 程式碼範例
-
-```csharp
-namespace Mediator.ModernNet11;
-
-using static System.Console;
-
-public static class Program
-{
-    public static void Main()
-    {
-        var chatroom = new Chatroom();
-
-        Participant george = new Beatle("George");
-        Participant paul = new Beatle("Paul");
-        Participant ringo = new Beatle("Ringo");
-        Participant john = new Beatle("John");
-        Participant yoko = new NonBeatle("Yoko");
-
-        // 支援 params ReadOnlySpan<Participant> 批次註冊
-        chatroom.Register(george, paul, ringo, john, yoko);
-
-        yoko.Send("John", "Hi John!");
-        paul.Send("Ringo", "All you need is love");
-        ringo.Send("George", "My sweet Lord");
-        paul.Send("John", "Can't buy me love");
-        john.Send("Yoko", "My sweet love");
-    }
-}
-
-public interface IChatroom
-{
-    void Register(params ReadOnlySpan<Participant> participants);
-    void Send(string from, string to, string message);
-}
-
-public sealed class Chatroom : IChatroom
-{
-    private readonly Dictionary<string, Participant> _participants = new(StringComparer.OrdinalIgnoreCase);
-
-    public void Register(params ReadOnlySpan<Participant> participants)
-    {
-        foreach (var participant in participants)
-        {
-            _participants.TryAdd(participant.Name, participant);
-            participant.Chatroom = this;
-        }
-    }
-
-    public void Send(string from, string to, string message)
-    {
-        if (_participants.TryGetValue(to, out var recipient))
-        {
-            recipient.Receive(from, message);
-        }
-    }
-}
-
-public abstract class Participant(string name)
-{
-    public string Name => name;
-    public IChatroom? Chatroom { get; set; }
-
-    public void Send(string to, string message) => Chatroom?.Send(Name, to, message);
-
-    public virtual void Receive(string from, string message) =>
-        WriteLine($"{from} to {Name}: '{message}'");
-}
-
-public sealed class Beatle(string name) : Participant(name)
-{
-    public override void Receive(string from, string message)
-    {
-        Write("To a Beatle: ");
-        base.Receive(from, message);
-    }
-}
-
-public sealed class NonBeatle(string name) : Participant(name)
-{
-    public override void Receive(string from, string message)
-    {
-        Write("To a non-Beatle: ");
-        base.Receive(from, message);
-    }
-}
-```
+</details>
 
 ---
 
