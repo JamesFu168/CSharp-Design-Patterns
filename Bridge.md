@@ -10,10 +10,11 @@
 
 **Bridge** Design Pattern 將抽象（Abstraction）與其實作（Implementation）解耦（Decouples），使這兩者可以獨立地變化。
 
-**Bridge** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Bridge** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -538,6 +539,98 @@ Jim Jones
     Henry Velasquez
 
     ------------------------
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **Dofactory `.NET Optimized` 範例已經相當接近現代寫法**：它使用了 Primary Constructors `CustomersBase(IDataObject<string> dataObject)` 將 Abstraction 與 Implementor 解耦。
+- **可進一步強化的細節**：在 `CustomersData` 中管理游標（`current`）邊界時，可利用 **`Math.Clamp`** 與 **C# 15 Collection Expression Arguments (`[with(capacity: ...)]`)**，讓程式碼更精煉且安全。
+
+### C# 15 / .NET 11 優化重點
+
+- **C# 15 Collection Expression Arguments (`[with(capacity: ...)]`)**：初始化內部清單時同時指定預留容量。
+- **`Math.Clamp`**：一行程式碼取代繁瑣的 `if (current > 0)` / `if (current < customers.Count - 1)` 邊界檢查。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Bridge.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var customers = new Customers(new CustomersData("Chicago"));
+
+        customers.Show();
+        customers.Next();
+        customers.Show();
+        customers.Add("Henry Velasquez");
+        customers.ShowAll();
+    }
+}
+
+public class CustomersBase(IDataObject<string> dataObject)
+{
+    public virtual void Next() => dataObject.NextRecord();
+    public virtual void Prior() => dataObject.PriorRecord();
+    public virtual void Add(string name) => dataObject.AddRecord(name);
+    public virtual void Delete(string name) => dataObject.DeleteRecord(name);
+    public virtual void Show() => dataObject.ShowRecord();
+    public virtual void ShowAll() => dataObject.ShowAllRecords();
+}
+
+public sealed class Customers(IDataObject<string> dataObject) : CustomersBase(dataObject)
+{
+    public override void ShowAll()
+    {
+        WriteLine("\n------------------------");
+        base.ShowAll();
+        WriteLine("------------------------");
+    }
+}
+
+public interface IDataObject<T>
+{
+    void NextRecord();
+    void PriorRecord();
+    void AddRecord(T record);
+    void DeleteRecord(T record);
+    T GetCurrentRecord();
+    void ShowRecord();
+    void ShowAllRecords();
+}
+
+public sealed class CustomersData(string city) : IDataObject<string>
+{
+    // C# 15 Collection Expression Arguments: 預先配置容量並填入初始元素
+    private readonly List<string> _customers =
+    [
+        with(capacity: 8),
+        "Jim Jones", "Samual Jackson", "Allen Good", "Ann Stills", "Lisa Giolani"
+    ];
+
+    private int _current;
+
+    public void NextRecord() => _current = Math.Clamp(_current + 1, 0, _customers.Count - 1);
+    public void PriorRecord() => _current = Math.Clamp(_current - 1, 0, _customers.Count - 1);
+    public void AddRecord(string customer) => _customers.Add(customer);
+    public void DeleteRecord(string customer) => _customers.Remove(customer);
+    public string GetCurrentRecord() => _customers[_current];
+    public void ShowRecord() => WriteLine(_customers[_current]);
+
+    public void ShowAllRecords()
+    {
+        WriteLine($"Customer Group: {city}");
+        _customers.ForEach(customer => WriteLine($" {customer}"));
+    }
+}
 ```
 
 ---

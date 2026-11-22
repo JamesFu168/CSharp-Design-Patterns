@@ -10,10 +10,11 @@
 
 **Singleton** Design Pattern 確保一個類別只有一個實例（Instance），並提供一個存取它的全域存取點（Global Point of Access）。
 
-**Singleton** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Singleton** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -377,6 +378,74 @@ Same instance
   ServerV
 
   ServerIV
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **全域靜態耦合與可測試性問題**：手刻 `LoadBalancer.GetLoadBalancer()` 會造成呼叫端與具體靜態類別緊密耦合，難以在單元測試（Unit Testing）中替換為 Mock 或 Fake。
+- **執行緒安全與隨機數產生器**：Dofactory 範例中在 Singleton 內部使用 `new Random()`（在舊版 .NET 中非執行緒安全）。在現代 .NET 中應使用執行緒安全的 `Random.Shared`。
+- **實務首選 DI 容器**：在 .NET 11 實務專案中，應優先透過 `services.AddSingleton<ILoadBalancer, LoadBalancer>()` 交由 DI 容器管理生命週期。
+
+### C# 15 / .NET 11 優化重點
+
+- **`Random.Shared`（執行緒安全隨機存取）**：取代手動實例化 `new Random()`。
+- **C# 15 Collection Expression Arguments (`with(...)`)** 與 **`FrozenArray` / `ImmutableArray`**：確保 Singleton 內部的伺服器清單不可變且具備最佳讀取效能。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Singleton.ModernNet11;
+
+using System.Collections.Immutable;
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var b1 = LoadBalancer.Instance;
+        var b2 = LoadBalancer.Instance;
+
+        if (ReferenceEquals(b1, b2))
+        {
+            WriteLine("Same instance\n");
+        }
+
+        for (int i = 0; i < 5; i++)
+        {
+            WriteLine($"Dispatch request to: {b1.NextServer.Name} ({b1.NextServer.Ip})");
+        }
+    }
+}
+
+public sealed record Server(string Name, string Ip);
+
+/// <summary>
+/// 現代化 Singleton：使用靜態屬性 Instance、ImmutableArray 與執行緒安全的 Random.Shared
+/// （註：在 ASP.NET Core / .NET 11 實務中，建議改用 DI 容器的 services.AddSingleton）
+/// </summary>
+public sealed class LoadBalancer
+{
+    public static LoadBalancer Instance { get; } = new();
+
+    private readonly ImmutableArray<Server> _servers =
+    [
+        new("ServerI", "120.14.220.18"),
+        new("ServerII", "120.14.220.19"),
+        new("ServerIII", "120.14.220.20"),
+        new("ServerIV", "120.14.220.21"),
+        new("ServerV", "120.14.220.22")
+    ];
+
+    private LoadBalancer() { }
+
+    // Random.Shared 為 .NET 內建的執行緒安全隨機數產生器
+    public Server NextServer => _servers[Random.Shared.Next(_servers.Length)];
+}
 ```
 
 ---

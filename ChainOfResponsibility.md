@@ -10,10 +10,11 @@
 
 **Chain of Responsibility** Design Pattern 藉由給予多個物件處理請求的機會，避免將請求的發送者（Sender）與接收者（Receiver）耦合在一起。此 Pattern 會將接收物件串連成一條鏈（Chain），並沿著這條鏈傳遞請求，直到有一個物件處理它為止。
 
-**Chain of Responsibility** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Chain of Responsibility** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -518,6 +519,97 @@ Director Larry approved request# 2034
     President Tammy approved request# 2035
 
     Request# 2036 requires an executive meeting!
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **過度使用 C# `event`**：Dofactory 的 `.NET Optimized` 為了炫技，在 `Approver` 中定義了 `public event EventHandler<PurchaseEventArgs> Purchase;`，並在建構函式裡把 `Purchase += PurchaseHandler;` 綁死給自己。這其實沒有帶來任何好處，反而增加了事件委派的間接層級。
+- **現代 .NET Pipeline 與 Pattern Matching**：在 .NET 11 中，責任鏈有兩種更道地的寫法：一是 ASP.NET Core 的 **Middleware Pipeline（中介軟體管線）**；二是在領域邏輯中使用 **C# Pattern Matching（`switch` + `when` 條件守衛）** 或 Fluent 串接方法。
+
+### C# 15 / .NET 11 優化重點
+
+- **Fluent 責任鏈組裝 (`SetNext`)**：讓 `larry.SetNext(sam).SetNext(tammy)` 可以一行流暢地完成串接。
+- **Relational Pattern Matching (`< 10_000.0`)**：在核准邏輯中使用直覺的關係模式比對（Relational Patterns）。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Chain.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var larry = new Director();
+        var sam = new VicePresident();
+        var tammy = new President();
+
+        // Fluent 串接責任鏈
+        larry.SetNext(sam).SetNext(tammy);
+
+        ReadOnlySpan<Purchase> requests =
+        [
+            new(2034, 350.00, "Supplies"),
+            new(2035, 32_590.10, "Project X"),
+            new(2036, 122_100.00, "Project Y")
+        ];
+
+        foreach (var purchase in requests)
+        {
+            larry.ProcessRequest(purchase);
+        }
+    }
+}
+
+public readonly record struct Purchase(int Number, double Amount, string Purpose);
+
+public abstract class Approver
+{
+    protected Approver? Successor { get; private set; }
+
+    public Approver SetNext(Approver next) => Successor = next;
+
+    public abstract void ProcessRequest(Purchase purchase);
+}
+
+public sealed class Director : Approver
+{
+    public override void ProcessRequest(Purchase purchase)
+    {
+        if (purchase.Amount < 10_000.0)
+            WriteLine($"{nameof(Director)} approved request# {purchase.Number}");
+        else
+            Successor?.ProcessRequest(purchase);
+    }
+}
+
+public sealed class VicePresident : Approver
+{
+    public override void ProcessRequest(Purchase purchase)
+    {
+        if (purchase.Amount < 25_000.0)
+            WriteLine($"{nameof(VicePresident)} approved request# {purchase.Number}");
+        else
+            Successor?.ProcessRequest(purchase);
+    }
+}
+
+public sealed class President : Approver
+{
+    public override void ProcessRequest(Purchase purchase)
+    {
+        if (purchase.Amount < 100_000.0)
+            WriteLine($"{nameof(President)} approved request# {purchase.Number}");
+        else
+            WriteLine($"Request# {purchase.Number} requires an executive meeting!");
+    }
+}
 ```
 
 ---

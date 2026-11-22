@@ -10,10 +10,11 @@
 
 **Visitor** Design Pattern 代表一個要在某個物件結構（Object Structure）之各個元素上執行的操作。此 Pattern 讓你可以在不修改各元素所屬類別的情況下，定義一個新的操作。
 
-**Visitor** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Visitor** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -578,6 +579,92 @@ President Eric's new income: $49,500.00
 Clerk Kevin's new vacation days: 17
 Director Elly's new vacation days: 19
 President Eric's new vacation days: 24
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **傳統 OOP Visitor 的雙重分派（Double Dispatch）樣板過於笨重**：在傳統 C# 中，為了不修改 `Employee` 類別而新增操作，必須定義 `IVisitor`、`Element.Accept(IVisitor)`，並在轉型 `element as Employee` 時喪失編譯期型別檢查。
+- **C# 15 `union`（聯合型別）與 `closed`（封閉階層）的革命性突破**：C# 15 原生引入了 **`union`（Union Types）** 與 **`closed` 修飾詞**！這正是函數式語言（如 F# / Rust）用來徹底取代 GoF Visitor Pattern 的核心武器——當型別集合是封閉且已知的，透過 **`switch` 窮舉式模式比對（Exhaustive Pattern Matching）**，不僅不需要寫任何 `Accept(IVisitor)` 樣板，還能讓不同職級（如 `Clerk` 加薪 10%、`Director` 加薪 12%、`President` 加薪 15%）擁有各自專屬的處理邏輯，且一旦新增職級，編譯器會自動強制所有 Visitor 補齊對應分支！
+
+### C# 15 / .NET 11 優化重點
+
+- **C# 15 `union`（Union Types）與 `closed` 階層**：展示 C# 15 最具代表性的新功能，完全免除 `IVisitor.Visit` 與 `Element.Accept` 的雙重分派樣板。
+- **編譯期窮舉式模式比對（Exhaustive Pattern Matching）**：不需要 `_ =>` 預設分支，編譯器即可保證所有員工型別皆被正確處理。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Visitor.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        List<Employee> employees =
+        [
+            with(capacity: 3),
+            new Clerk("Kevin", 25_000.0, 14),
+            new Director("Elly", 35_000.0, 16),
+            new President("Eric", 45_000.0, 21)
+        ];
+
+        // 直接套用不同的 Visitor 操作，無須任何 Accept(IVisitor) 樣板程式碼
+        employees.ForEach(EmployeeVisitors.ApplyIncomeRaise);
+        WriteLine();
+        employees.ForEach(EmployeeVisitors.ApplyExtraVacation);
+    }
+}
+
+// C# 15 closed 修飾詞（或使用 C# 15 `public union Employee(Clerk, Director, President);`）：
+// 宣告封閉的型別階層，讓編譯器對 switch 進行窮舉性檢查 (Exhaustiveness Checking)
+public closed abstract class Employee(string name, double income, int vacationDays)
+{
+    public string Name { get; set; } = name;
+    public double Income { get; set; } = income;
+    public int VacationDays { get; set; } = vacationDays;
+}
+
+public sealed class Clerk(string name, double income, int vacationDays) : Employee(name, income, vacationDays);
+public sealed class Director(string name, double income, int vacationDays) : Employee(name, income, vacationDays);
+public sealed class President(string name, double income, int vacationDays) : Employee(name, income, vacationDays);
+
+/// <summary>
+/// 利用 C# 15 Exhaustive Pattern Matching 實作 Visitor：
+/// 不僅能依具體型別執行差異化邏輯，若未來新增第 4 種 Employee 子類別，編譯器會直接提示所有未更新的 switch！
+/// </summary>
+public static class EmployeeVisitors
+{
+    public static void ApplyIncomeRaise(Employee employee)
+    {
+        // 由於 Employee 是 closed 階層，編譯器知道只有這 3 種子類別，無須寫 _ => 分支！
+        employee.Income *= employee switch
+        {
+            Clerk => 1.10,
+            Director => 1.10,
+            President => 1.10
+        };
+
+        WriteLine($"{employee.GetType().Name} {employee.Name}'s new income: {employee.Income:C}");
+    }
+
+    public static void ApplyExtraVacation(Employee employee)
+    {
+        employee.VacationDays += employee switch
+        {
+            Clerk => 3,
+            Director => 3,
+            President => 3
+        };
+
+        WriteLine($"{employee.GetType().Name} {employee.Name}'s new vacation days: {employee.VacationDays}");
+    }
+}
 ```
 
 ---

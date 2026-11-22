@@ -10,10 +10,11 @@
 
 **Prototype** Design Pattern 使用一個原型實例（Prototypical Instance）來指定要建立之物件的種類，並透過複製（Copying）這個原型來建立新的物件。
 
-**Prototype** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Prototype** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -395,6 +396,53 @@ Cloning color RGB: 255,  0,  0
     Cloning color RGB: 128,211,128
 
     Cloning color RGB: 211, 34, 20
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **使用 `JsonSerializer` 進行複製的效能陷阱**：Dofactory 的 `.NET Optimized` 版本使用 `JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(this))` 來實作 Deep Clone。這在實務上是嚴重的效能瓶頸（產生大量字串與 UTF-8 緩衝區配置），且無法處理循環參考或私有狀態。
+- **忽略了 C# `record` 原生內建的 Prototype 機制**：C# 的 `record` 型別本身就會由編譯器自動合成一個受保護的複製建構函式（Copy Constructor）與 `Clone` 方法，搭配 **`with` 運算式**即可達到零反射、型別安全的非破壞性複製（Non-destructive Mutation）。
+
+### C# 15 / .NET 11 優化重點
+
+- **`record` 與 `with` 運算式**：直接用 `var newColor = red with { Green = 54 };` 取代繁瑣的 `ICloneable` 介面與 JSON 序列化。
+- **C# 15 Collection Expression Arguments**：使用 `[with(capacity: ...)]` 初始化原型註冊表。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Prototype.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var red = new Color(255, 0, 0);
+        var green = new Color(0, 255, 0);
+
+        // C# record 的 'with' 運算式就是語言層級的 Prototype Pattern！
+        // 既可完整複製，也能在複製同時微調部分屬性 (Non-destructive mutation)
+        var cloneRed = red with { };
+        var angry = red with { Green = 54, Blue = 54 };
+        var peace = green with { Red = 128, Blue = 128 };
+
+        WriteLine($"Original Red : {red}");
+        WriteLine($"Cloned Red   : {cloneRed}");
+        WriteLine($"Angry Variant: {angry}");
+        WriteLine($"Peace Variant: {peace}");
+    }
+}
+
+/// <summary>
+/// 使用 record (或 readonly record struct) 自動獲得高效能的 Prototype 複製能力
+/// </summary>
+public sealed record Color(byte Red, byte Green, byte Blue);
 ```
 
 ---

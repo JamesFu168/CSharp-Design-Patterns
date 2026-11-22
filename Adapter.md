@@ -10,10 +10,11 @@
 
 **Adapter** Design Pattern 將一個類別的介面轉換成用戶端（Clients）所期望的另一個介面。此 Design Pattern 讓原本因為介面不相容而無法一起運作的類別能夠協同運作。
 
-**Adapter** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Adapter** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -513,6 +514,109 @@ Compound: Unknown ------
      Melting Pt: -114.1
 
      Boiling Pt: 78.3
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **類別繼承耦合**：Dofactory 的 `.NET Optimized` 讓 `RichCompound` 繼承自一個空殼的 `Compound` 類別，並依賴多個分散的 `switch` 呼叫。
+- **重複查詢轉接目標（Adaptee）**：每次顯示一個化合物就要呼叫 `bank` 4 次。在現代 C# 中，可以透過 **Tuple Pattern Matching** 或 **C# 14/15 Extension Blocks（擴充區塊）** 直接為舊有 `ChemicalDatabank` 提供現代化的轉接介面。
+
+### C# 15 / .NET 11 優化重點
+
+- **介面導向與 Primary Constructor 組合（Object Adapter）**：遵循「合成優於繼承（Composition over Inheritance）」，將 `ChemicalDatabank` 注入 Adapter。
+- **Tuple / Exhaustive Pattern Matching**：在 Legacy API 轉換時一次回傳結構化資料或使用簡潔的 `switch` 運算式。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Adapter.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var databank = new ChemicalDatabank();
+
+        ReadOnlySpan<ICompound> compounds =
+        [
+            new AdaptedCompound(Chemical.Water, databank),
+            new AdaptedCompound(Chemical.Benzene, databank),
+            new AdaptedCompound(Chemical.Ethanol, databank)
+        ];
+
+        foreach (var compound in compounds)
+        {
+            compound.Display();
+        }
+    }
+}
+
+public enum Chemical { Water, Benzene, Ethanol }
+public enum State { Boiling, Melting }
+
+public interface ICompound
+{
+    void Display();
+}
+
+/// <summary>
+/// Object Adapter：使用 Primary Constructor 封裝 Legacy Adaptee
+/// </summary>
+public sealed class AdaptedCompound(Chemical chemical, ChemicalDatabank bank) : ICompound
+{
+    public void Display()
+    {
+        var formula = bank.GetMolecularStructure(chemical);
+        var weight = bank.GetMolecularWeight(chemical);
+        var melting = bank.GetCriticalPoint(chemical, State.Melting);
+        var boiling = bank.GetCriticalPoint(chemical, State.Boiling);
+
+        WriteLine($"\nCompound: {chemical} ------ ");
+        WriteLine($" Formula: {formula}");
+        WriteLine($" Weight : {weight}");
+        WriteLine($" Melting Pt: {melting}");
+        WriteLine($" Boiling Pt: {boiling}");
+    }
+}
+
+/// <summary>
+/// The 'Adaptee' class (模擬既有或第三方系統 API)
+/// </summary>
+public sealed class ChemicalDatabank
+{
+    public float GetCriticalPoint(Chemical compound, State point) => (compound, point) switch
+    {
+        (Chemical.Water, State.Melting) => 0.0f,
+        (Chemical.Water, State.Boiling) => 100.0f,
+        (Chemical.Benzene, State.Melting) => 5.5f,
+        (Chemical.Benzene, State.Boiling) => 80.1f,
+        (Chemical.Ethanol, State.Melting) => -114.1f,
+        (Chemical.Ethanol, State.Boiling) => 78.3f,
+        _ => 0f
+    };
+
+    public string GetMolecularStructure(Chemical compound) => compound switch
+    {
+        Chemical.Water => "H20",
+        Chemical.Benzene => "C6H6",
+        Chemical.Ethanol => "C2H5OH",
+        _ => ""
+    };
+
+    public double GetMolecularWeight(Chemical compound) => compound switch
+    {
+        Chemical.Water => 18.015,
+        Chemical.Benzene => 78.1134,
+        Chemical.Ethanol => 46.0688,
+        _ => 0d
+    };
+}
 ```
 
 ---

@@ -10,10 +10,11 @@
 
 **Facade** Design Pattern 為子系統（Subsystem）中的一組介面提供一個統一的介面。此 Pattern 定義了一個更高階的介面，讓該子系統更容易被使用。
 
-**Facade** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Facade** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -451,6 +452,84 @@ Ann McKinsey applies for $125,000.00 loan
     
 
     Ann McKinsey has been Approved
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **缺乏介面抽象與相依性注入（DI）**：Dofactory 的 `Mortgage` 類別在內部直接 `new Bank()`、`new Loan()`、`new Credit()`。在現代 .NET 11 架構中，Facade 通常是協調多個子系統服務的 Application Service，應透過 **Primary Constructor Dependency Injection** 注入子系統介面，以便於單元測試與替換。
+
+### C# 15 / .NET 11 優化重點
+
+- **Primary Constructor DI 模式**：將 `Bank`、`Loan`、`Credit` 透過主要建構函式注入 `MortgageFacade`，同時提供預設建構函式方便直接呼叫。
+- **`readonly record struct`**：輕量化 `Customer` 資料載體。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Facade.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var mortgage = new MortgageFacade();
+        var customer = new Customer("Ann McKinsey");
+
+        bool eligible = mortgage.IsEligible(customer, 125_000);
+        WriteLine($"\n{customer.Name} has been {(eligible ? "Approved" : "Rejected")}");
+    }
+}
+
+public readonly record struct Customer(string Name);
+
+public sealed class Bank
+{
+    public bool HasSufficientSavings(Customer c, int amount)
+    {
+        WriteLine($"Check bank for {c.Name}");
+        return true;
+    }
+}
+
+public sealed class Credit
+{
+    public bool HasGoodCredit(Customer c)
+    {
+        WriteLine($"Check credit for {c.Name}");
+        return true;
+    }
+}
+
+public sealed class Loan
+{
+    public bool HasNoBadLoans(Customer c)
+    {
+        WriteLine($"Check loans for {c.Name}");
+        return true;
+    }
+}
+
+/// <summary>
+/// 支援 Primary Constructor DI 注入的現代化 Facade
+/// </summary>
+public sealed class MortgageFacade(Bank bank, Loan loan, Credit credit)
+{
+    public MortgageFacade() : this(new Bank(), new Loan(), new Credit()) { }
+
+    public bool IsEligible(Customer customer, int amount)
+    {
+        WriteLine($"{customer.Name} applies for {amount:C} loan\n");
+        return bank.HasSufficientSavings(customer, amount)
+            && loan.HasNoBadLoans(customer)
+            && credit.HasGoodCredit(customer);
+    }
+}
 ```
 
 ---

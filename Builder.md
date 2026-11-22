@@ -10,10 +10,11 @@
 
 **Builder** Design Pattern 將複雜物件的建構過程與其表示方式（Representation）分離，讓相同的建構過程可以建立不同的表示方式。
 
-**Builder** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Builder** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -682,6 +683,78 @@ public enum VehicleType
      #Wheels: 2
 
      #Doors : 0
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **可變狀態（Mutable State）過多**：Dofactory 原版在 `Vehicle` 內部使用 `Dictionary<PartType, string>`，且要求 `Director`（`Shop`）依序呼叫 `BuildFrame()`、`BuildEngine()`。若漏掉某個步驟，執行期才會拋出 `KeyNotFoundException`。
+- **缺乏 Fluent API 與不可變性（Immutability）**：現代 .NET（如 `HostApplicationBuilder`、`WebApplication.CreateBuilder`）普遍採用 **Fluent Builder** 搭配不可變的 `record` 產品物件，並使用 `required` 屬性或集合運算式。
+
+### C# 15 / .NET 11 優化重點
+
+- **Fluent Builder + Immutable `record` 產品**：建構過程採用 Method Chaining（方法鏈），最終 `Build()` 產出不可變的 `Vehicle` `record`。
+- **C# 15 Collection Expression Arguments (`with(capacity: ...)`)**：在初始化零件字典或清單時預先指定容量，避免動態擴容開銷。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Builder.ModernNet11;
+
+using System.Collections.Frozen;
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var car = new VehicleBuilder(VehicleType.Car)
+            .WithFrame("Car Frame")
+            .WithEngine("2500 cc")
+            .WithWheels(4)
+            .WithDoors(4)
+            .Build();
+
+        car.Show();
+    }
+}
+
+public enum VehicleType { Car, Scooter, MotorCycle }
+public enum PartType { Frame, Engine, Wheel, Door }
+
+/// <summary>
+/// 不可變的 Product record，使用 .NET FrozenDictionary 提升讀取效能
+/// </summary>
+public sealed record Vehicle(VehicleType Type, FrozenDictionary<PartType, string> Parts)
+{
+    public void Show()
+    {
+        WriteLine($"\n---------------------------");
+        WriteLine($"Vehicle Type: {Type}");
+        foreach (var (part, spec) in Parts)
+        {
+            WriteLine($" {part,-6} : {spec}");
+        }
+    }
+}
+
+/// <summary>
+/// 現代化 Fluent Builder
+/// </summary>
+public sealed class VehicleBuilder(VehicleType type)
+{
+    private readonly Dictionary<PartType, string> _parts = new(capacity: 4);
+
+    public VehicleBuilder WithFrame(string frame) { _parts[PartType.Frame] = frame; return this; }
+    public VehicleBuilder WithEngine(string engine) { _parts[PartType.Engine] = engine; return this; }
+    public VehicleBuilder WithWheels(int count) { _parts[PartType.Wheel] = $"{count}"; return this; }
+    public VehicleBuilder WithDoors(int count) { _parts[PartType.Door] = $"{count}"; return this; }
+
+    public Vehicle Build() => new(type, _parts.ToFrozenDictionary());
+}
 ```
 
 ---

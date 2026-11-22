@@ -10,10 +10,11 @@
 
 **Template Method** Design Pattern 在一個操作中定義了演算法的骨架（Skeleton），並將某些步驟推遲（Deferring）到子類別中實作。此 Pattern 讓子類別可以在不改變演算法結構的情況下，重新定義演算法的某些特定步驟。
 
-**Template Method** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Template Method** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -485,6 +486,102 @@ Categories ----
     Northwoods Cranberry Sauce
 
     Mishi Kobe Niku
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **不必要的 `where T : class, new()` 限制與 `null!` 警告壓制**：Dofactory 的 `.NET Optimized` 在 `Category` 與 `Product` 中寫了 `public string CategoryName { get; set; } = null!;`，就是為了遷就 `DataAccessor<T> where T : class, new()` 的無參數建構函式限制。
+- **現代 C# 15 改進**：移除無意義的 `new()` 限制，讓 `Category` 與 `Product` 可以直接使用簡潔、不可變且具型別安全的 **`readonly record struct`（或 Primary Constructor `record`）**，並利用 `CollectionsMarshal.AsSpan` 或 `Span` 切片 `Items[..top]` 來處理前 N 筆資料！
+
+### C# 15 / .NET 11 優化重點
+
+- **Primary Constructor `record` 消除 `= null!`**：不再需要為了 `new()` 限制而犧牲 Null 安全性。
+- **集合切片（Range / Slice `Items[..top]`）**：在 `Process(int top)` 中直接使用 `foreach (var item in Items[..top])` 取代傳統的 `for (int i = 0; i < top; i++)` 迴圈。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Template.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        new CategoryAccessor().Run(5);
+        new ProductAccessor().Run(3);
+    }
+}
+
+public readonly record struct Category(string CategoryName);
+public readonly record struct Product(string ProductName);
+
+public abstract class DataAccessor<T>
+{
+    protected List<T> Items { get; set; } = [];
+
+    protected virtual void Connect() => Items.Clear();
+    protected abstract void Select();
+    protected abstract void Process(int top);
+    protected virtual void Disconnect() => Items.Clear();
+
+    // The 'Template Method'
+    public void Run(int top)
+    {
+        Connect();
+        Select();
+        Process(top);
+        Disconnect();
+    }
+}
+
+public sealed class CategoryAccessor : DataAccessor<Category>
+{
+    protected override void Select() =>
+        Items =
+        [
+            with(capacity: 7),
+            new("Red"), new("Green"), new("Blue"),
+            new("Yellow"), new("Purple"), new("White"), new("Black")
+        ];
+
+    protected override void Process(int top)
+    {
+        WriteLine("Categories ---- ");
+        // 使用現代 C# Range 切片語法 [..top]
+        foreach (var item in Items[..top])
+        {
+            WriteLine(item.CategoryName);
+        }
+        WriteLine();
+    }
+}
+
+public sealed class ProductAccessor : DataAccessor<Product>
+{
+    protected override void Select() =>
+        Items =
+        [
+            with(capacity: 7),
+            new("Car"), new("Bike"), new("Boat"),
+            new("Truck"), new("Moped"), new("Rollerskate"), new("Stroller")
+        ];
+
+    protected override void Process(int top)
+    {
+        WriteLine("Products ---- ");
+        foreach (var item in Items[..top])
+        {
+            WriteLine(item.ProductName);
+        }
+        WriteLine();
+    }
+}
 ```
 
 ---

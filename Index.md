@@ -1,7 +1,7 @@
 # C# Design Patterns (設計模式總覽)
 
 > **資料來源**：[Dofactory - C# / .NET Design Patterns](https://www.dofactory.com/net/design-patterns)  
-> **說明**：本系列文件完整收錄並翻譯 Dofactory 網站上的 23 種 Gang of Four (GoF) C# Design Patterns，包含 UML 類別圖、參與者角色說明，以及 **Structural（結構化）**、**Real-world（真實世界）** 與 **.NET Optimized（.NET 最佳化）** 三種完整 C# 原始碼與執行輸出結果。
+> **說明**：本系列文件完整收錄並翻譯 Dofactory 網站上的 23 種 Gang of Four (GoF) C# Design Patterns，包含 UML 類別圖、參與者角色說明，以及 **Structural（結構化）**、**Real-world（真實世界）** 與 **.NET Optimized（.NET 最佳化）** 三種完整 C# 原始碼與執行輸出結果，並額外針對 **.NET 11 與 C# 15** 補充第 4 種「**現代化實務優化版本**」與架構檢討。
 
 ---
 
@@ -13,13 +13,14 @@ Design Patterns（設計模式）是在真實世界的應用程式開發中，�
 
 ---
 
-## C# Design Patterns 的三種程式碼形式
+## C# Design Patterns 的四種程式碼形式
 
-為了讓你能夠快速上手，每一種 Pattern 的 C# 原始碼都提供以下 3 種形式：**Structural（結構化）**、**Real-world（真實世界）** 與 **.NET Optimized（.NET 最佳化）**。
+為了讓你能夠快速上手並掌握最新技術，每一種 Pattern 的 C# 原始碼都提供以下 4 種形式：**Structural（結構化）**、**Real-world（真實世界）**、**.NET Optimized（Dofactory 原版最佳化）** 以及 **.NET 11 / C# 15 現代化實務優化**。
 
 - **Structural（結構化程式碼）**：使用在 Pattern 定義與 UML 類別圖中所定義的標準型別名稱，清晰呈現該 Pattern 的核心架構與運作機制。
 - **Real-world（真實世界程式碼）**：提供真實世界的程式設計情境，展示你在實務開發中可能會如何應用這些 Patterns。
-- **.NET Optimized（.NET 最佳化程式碼）**：示範如何充分運用最新的 C# 與 .NET 語言特性來實作 Design Patterns，例如：泛型（Generics）、反射（Reflection）、Lambda 運算式、主要建構函式（Primary Constructors）、記錄型別（Records）、模式比對（Pattern Matching）等。
+- **.NET Optimized（Dofactory 原版 .NET 最佳化程式碼）**：保留 Dofactory 網站原版提供的 C# 現代化程式碼（約對應 C# 10~12 語法，如 Primary Constructors、基本 Records 與泛型）。
+- **🚀 .NET 11 / C# 15 現代化實務優化（Modern .NET 11 & C# 15）**：深入檢討原版程式碼的效能盲點或潛在 Bug（如使用 JSON 序列化做 Clone、`static` 欄位狀態污染、基底建構函式呼叫虛擬方法等），並提供採用 **C# 15 / .NET 11** 最新特性的實戰程式碼！
 
 ---
 
@@ -70,3 +71,20 @@ Design Patterns（設計模式）是在真實世界的應用程式開發中，�
 | **[Strategy](Strategy.md)** | 將演算法封裝在類別內部，使其可互相替換 | 高 (High) | [Strategy.md](Strategy.md) |
 | **[Template Method](TemplateMethod.md)** | 將演算法的確切步驟推遲（Defer）到子類別中實作 | 中 (Medium) | [TemplateMethod.md](TemplateMethod.md) |
 | **[Visitor](Visitor.md)** | 在不修改類別的情況下，為類別定義一個新的操作 | 低 (Low) | [Visitor.md](Visitor.md) |
+
+---
+
+## 🚀 .NET 11 與 C# 15 現代化實務優化總整理
+
+Dofactory 原版的 `.NET Optimized` 範例大多停留在早期 C# 語法糖，部分寫法在現代 .NET 11 高效能與雲端原生開發中已不再推薦。本知識庫在每一篇 Pattern 的最後一節，皆針對 **.NET 11 與 C# 15** 提供了深度檢討與改寫範例，核心優化重點如下：
+
+| C# 15 / .NET 11 語言與框架特性 | 應用的 Design Patterns | 解決的原版痛點與優化效益 |
+| :--- | :--- | :--- |
+| **C# 15 `union`（聯合型別）與 `closed`（封閉繼承階層）** | [Visitor](Visitor.md)、[State](State.md)、[Factory Method](FactoryMethod.md)、[Flyweight](Flyweight.md) | 讓編譯器在編譯期強制進行**窮舉式模式比對（Exhaustive Pattern Matching）**，徹底免除傳統 Visitor 笨重的 `Accept(IVisitor)` 雙重分派樣板與 State 散落各處的 `if-else`。 |
+| **C# 15 集合運算式參數 `[with(capacity: ...)]`** | [Builder](Builder.md)、[Bridge](Bridge.md)、[Decorator](Decorator.md)、[Template Method](TemplateMethod.md) | 在集合運算式開頭直接傳入預留容量或比較器（如 `[with(capacity: 8), ..items]`），兼具簡潔語法與零動態擴容開銷。 |
+| **C# 14/15 `field` 關鍵字（Field-backed Properties）** | [Observer](Observer.md)、[Memento](Memento.md) | 在屬性 `set` 存取子中直接存取編譯器合成的 `field`，省去所有手動宣告的 `private` 背端欄位（Backing Fields）。 |
+| **Static Abstract Interface Members（靜態抽象介面成員）** | [Abstract Factory](AbstractFactory.md) | 取代 `where T : new()` 的執行期反射實例化開銷，達成編譯期靜態分派與零工廠實例配置（Zero-allocation）。 |
+| **`record` / `readonly record struct` 與 `with` 運算式** | [Prototype](Prototype.md)、[Command](Command.md)、[Observer](Observer.md)、[Facade](Facade.md) | 修正原版 Prototype 與 Memento 濫用 `JsonSerializer` 進行複製的嚴重效能陷阱，改用語言原生的非破壞性複製（Non-destructive Mutation）與堆疊配置（Stack Allocation）。 |
+| **`params ReadOnlySpan<T>` 與 `ReadOnlySpan<char>` 切片** | [Composite](Composite.md)、[Interpreter](Interpreter.md)、[Mediator](Mediator.md) | 批次加入樹狀節點或剖析羅馬數字文法時，達成**零陣列與零子字串記憶體配置（Zero Heap Allocation）**。 |
+| **原版潛在 Bug 修正與執行緒安全強化** | [Decorator](Decorator.md)、[Flyweight](Flyweight.md)、[Factory Method](FactoryMethod.md)、[Singleton](Singleton.md) | 修正原版 Decorator 誤將 `NumCopies` 設為 `static` 的嚴重 Bug、Flyweight 將外部狀態存入共享物件的 Race Condition、Factory Method 在基底建構函式呼叫虛擬方法（CA2214），以及 Singleton 改用 `Random.Shared` 與 `ImmutableArray`。 |
+

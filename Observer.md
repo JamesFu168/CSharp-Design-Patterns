@@ -10,10 +10,11 @@
 
 **Observer** Design Pattern 在物件之間定義了一對多（One-to-many）的相依關係，使得當一個物件改變狀態時，所有相依於它的物件都會自動收到通知並進行更新。
 
-**Observer** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Observer** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -511,6 +512,84 @@ Notified Sorros of IBM's change to $120.10
     Notified Sorros of IBM's change to $120.75
 
     Notified Berkshire of IBM's change to $120.75
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **手動宣告 Backing Field 與潛在記憶體洩漏**：Dofactory 的 `Stock` 類別手動宣告了 `protected double price = price;`，且 `ChangeEventArgs` 是 `class`（每次股價跳動都會在 Heap 配置一個新物件）。
+- **C# 14/15 `field` 關鍵字與 `readonly record struct` 事件參數**：利用 C# 的 **`field` 關鍵字**，可以直接在 `Price` 屬性內比較 `if (field != value)`，不再需要 `protected double price;` 欄位！同時將事件資料改為 `readonly record struct`，大幅降低高頻事件通知的 GC 壓力。
+
+### C# 15 / .NET 11 優化重點
+
+- **C# 14/15 `field` 關鍵字**：在 `Price` 屬性中直接存取編譯器合成的 `field`，程式碼更乾淨。
+- **`readonly record struct ChangeEventArgs`**：搭配泛型 `EventHandler<TEventArgs>`（現代 .NET 已移除 `TEventArgs : EventArgs` 的強制類別限制），達成**零 Heap 配置（Zero-allocation）**的事件通知！
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Observer.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var ibm = new IBM(120.00);
+
+        ibm.Attach(new Investor("Sorros"));
+        ibm.Attach(new Investor("Berkshire"));
+
+        ibm.Price = 120.10;
+        ibm.Price = 121.00;
+        ibm.Price = 120.50;
+        ibm.Price = 120.75;
+    }
+}
+
+// 現代 .NET 的 EventHandler<T> 不再強制要求繼承 EventArgs class，
+// 使用 readonly record struct 可在每次觸發事件時達成零 Heap 配置 (Zero-allocation)！
+public readonly record struct ChangeEventArgs(string Symbol, double Price);
+
+public abstract class Stock(string symbol, double initialPrice)
+{
+    public event EventHandler<ChangeEventArgs>? Change;
+
+    public void Attach(IInvestor investor) => Change += investor.Update;
+    public void Detach(IInvestor investor) => Change -= investor.Update;
+
+    // 使用 C# 14/15 'field' 關鍵字，省去手動宣告 private double _price 欄位
+    public double Price
+    {
+        get;
+        set
+        {
+            if (Math.Abs(field - value) > double.Epsilon)
+            {
+                field = value;
+                Change?.Invoke(this, new ChangeEventArgs(symbol, field));
+                WriteLine();
+            }
+        }
+    } = initialPrice;
+}
+
+public sealed class IBM(double price) : Stock("IBM", price);
+
+public interface IInvestor
+{
+    void Update(object? sender, ChangeEventArgs e);
+}
+
+public sealed record Investor(string Name) : IInvestor
+{
+    public void Update(object? sender, ChangeEventArgs e) =>
+        WriteLine($"Notified {Name} of {e.Symbol}'s change to {e.Price:C}");
+}
 ```
 
 ---

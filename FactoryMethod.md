@@ -10,10 +10,11 @@
 
 **Factory Method** Design Pattern 定義了一個用於建立物件的介面，但讓子類別（Subclasses）決定要實例化（Instantiate）哪一個類別。此 Pattern 讓類別將實例化的動作推遲到子類別中執行。
 
-**Factory Method** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Factory Method** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -537,6 +538,86 @@ Resume -------
      SummaryPage
 
      BibliographyPage
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **在抽象基底類別建構函式中呼叫 `virtual`/`abstract` 方法（反模式 Anti-pattern）**：Dofactory 的 `Document` 在建構函式中直接呼叫 `this.CreatePages()`。在 C# 中，當基底類別建構函式執行時，衍生類別的欄位與 Primary Constructor 參數尚未完成初始化，這在實務上極易引發 `NullReferenceException`（編譯器與 SonarQube 皆會發出警告 CA2214）。
+
+### C# 15 / .NET 11 優化重點
+
+- **移除建構函式中的虛擬呼叫**：改用延遲初始化或由工廠屬性 / 集合運算式直接定義頁面配置。
+- **C# 15 `closed` 階層與 Collection Expressions `with(...)`**：使用 `closed abstract record Page` 明確封閉頁面型別，並使用集合運算式直接宣告文件結構。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace FactoryMethod.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        ReadOnlySpan<Document> documents = [new Resume(), new Report()];
+
+        foreach (var doc in documents)
+        {
+            WriteLine($"\n{doc.GetType().Name} --");
+            foreach (var page in doc.Pages)
+            {
+                WriteLine($" {page.GetType().Name}");
+            }
+        }
+    }
+}
+
+// C# 15 closed 修飾詞：限制 Page 只能在此組件內被繼承
+public closed abstract record Page;
+public sealed record SkillsPage : Page;
+public sealed record EducationPage : Page;
+public sealed record ExperiencePage : Page;
+public sealed record IntroductionPage : Page;
+public sealed record ResultsPage : Page;
+public sealed record ConclusionPage : Page;
+public sealed record SummaryPage : Page;
+public sealed record BibliographyPage : Page;
+
+public abstract class Document
+{
+    private List<Page>? _pages;
+
+    // 避免在基底建構函式呼叫虛擬方法，改由首次存取時安全地呼叫 Factory Method
+    public IReadOnlyList<Page> Pages => _pages ??= CreatePages();
+
+    // Factory Method
+    protected abstract List<Page> CreatePages();
+}
+
+public sealed class Resume : Document
+{
+    // 使用 C# 15 Collection Expression Arguments 預先指定容量
+    protected override List<Page> CreatePages() =>
+        [with(capacity: 3), new SkillsPage(), new EducationPage(), new ExperiencePage()];
+}
+
+public sealed class Report : Document
+{
+    protected override List<Page> CreatePages() =>
+        [
+            with(capacity: 5),
+            new IntroductionPage(),
+            new ResultsPage(),
+            new ConclusionPage(),
+            new SummaryPage(),
+            new BibliographyPage()
+        ];
+}
 ```
 
 ---

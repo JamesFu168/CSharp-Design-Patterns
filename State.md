@@ -10,10 +10,11 @@
 
 **State** Design Pattern 允許一個物件在其內部狀態改變時改變其行為。該物件看起來就像是改變了它的類別一樣。
 
-**State** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**State** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -860,6 +861,124 @@ Deposited $500.00 ---
      Balance = ($582.50)
 
      Status  = RedState
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **嚴重的重複程式碼（DRY 原則違反）**：Dofactory 的 `State` 範例（包含 Structural、Real-world 與 `.NET Optimized` 三個版本完全一模一樣）在 `RedState`、`SilverState`、`GoldState` 中複製貼上了幾乎完全相同的 `Deposit`、`Withdraw` 與 `StateChangeCheck` 邏輯，甚至連雙向參考 `Account.State = new SilverState(this)` 都散落在各個狀態類別中。
+- **C# 15 `closed` 階層與 Pattern Matching 狀態機**：利用 C# 15 的 **`closed` 類別階層** 與 **`switch` 運算式（Relational & Property Pattern Matching）**，可以把狀態轉換規則集中且清晰地表達，消除超過 60% 的樣板程式碼。
+
+### C# 15 / .NET 11 優化重點
+
+- **C# 15 `closed abstract record AccountState`**：宣告封閉的狀態繼承階層，讓編譯器保證狀態種類的窮舉性。
+- **Relational Pattern Matching 狀態轉換 (`switch` 運算式)**：用短短 5 行模式比對取代原本散落在 3 個類別中超過 50 行的 `if-else` `StateChangeCheck()`！
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace State.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var account = new Account("Jim Johnson");
+
+        account.Deposit(500.0);
+        account.Deposit(300.0);
+        account.Deposit(550.0);
+        account.PayInterest();
+        account.Withdraw(2000.00);
+        account.Withdraw(1100.00);
+    }
+}
+
+/// <summary>
+/// C# 15 closed 階層：將不同狀態的差異參數化，並集中處理狀態轉換規則
+/// </summary>
+public closed abstract record AccountState(double InterestRate, double LowerLimit, double UpperLimit)
+{
+    public virtual double CalculateWithdrawAmount(double amount) => amount;
+    public virtual double CalculateInterest(double balance) => balance * InterestRate;
+
+    // 使用 C# Relational Pattern Matching 一處定義所有狀態轉換規則
+    public static AccountState EvaluateState(double balance) => balance switch
+    {
+        < 0.0 => RedState.Instance,
+        < 1000.0 => SilverState.Instance,
+        _ => GoldState.Instance
+    };
+}
+
+public sealed record RedState() : AccountState(InterestRate: 0.0, LowerLimit: -100.0, UpperLimit: 0.0)
+{
+    public static readonly RedState Instance = new();
+    private const double ServiceFee = 15.00;
+
+    // RedState 透支提款時需額外加收手續費，且不配發利息
+    public override double CalculateWithdrawAmount(double amount) => amount + ServiceFee;
+    public override double CalculateInterest(double balance) => 0.0;
+}
+
+public sealed record SilverState() : AccountState(InterestRate: 0.0, LowerLimit: 0.0, UpperLimit: 1000.0)
+{
+    public static readonly SilverState Instance = new();
+    public override double CalculateInterest(double balance) => 0.0;
+}
+
+public sealed record GoldState() : AccountState(InterestRate: 0.05, LowerLimit: 1000.0, UpperLimit: 10_000_000.0)
+{
+    public static readonly GoldState Instance = new();
+}
+
+public sealed class Account(string owner)
+{
+    public double Balance { get; private set; }
+    public AccountState State { get; private set; } = SilverState.Instance;
+
+    public void Deposit(double amount)
+    {
+        Balance += amount;
+        State = AccountState.EvaluateState(Balance);
+        PrintTransaction($"Deposited {amount:C}");
+    }
+
+    public void Withdraw(double amount)
+    {
+        double totalDeduct = State.CalculateWithdrawAmount(amount);
+        if (State is RedState && Balance - totalDeduct < State.LowerLimit)
+        {
+            WriteLine("No funds available for withdrawal!");
+        }
+        else
+        {
+            Balance -= totalDeduct;
+            State = AccountState.EvaluateState(Balance);
+        }
+        PrintTransaction($"Withdrew {amount:C}");
+    }
+
+    public void PayInterest()
+    {
+        Balance += State.CalculateInterest(Balance);
+        State = AccountState.EvaluateState(Balance);
+        PrintTransaction("Interest Paid");
+    }
+
+    private void PrintTransaction(string action)
+    {
+        WriteLine($"Owner: {owner}");
+        WriteLine($"{action} --- ");
+        WriteLine($" Balance = {Balance:C}");
+        WriteLine($" Status  = {State.GetType().Name}\n");
+    }
+}
 ```
 
 ---

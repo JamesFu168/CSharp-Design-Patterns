@@ -10,10 +10,11 @@
 
 **Abstract Factory** Design Pattern 提供一個介面（Interface），用於建立相關或相依物件的家族，而無須指定它們的具體類別（Concrete Classes）。
 
-**Abstract Factory** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Abstract Factory** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -551,6 +552,93 @@ public class AnimalWorld<T> : IAnimalWorld where T : IContinentFactory, new()
 Lion eats Wildebeest
 
     Wolf eats Bison
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **`where T : new()` 的反射開銷與限制**：Dofactory 的 `.NET Optimized` 版本使用 `AnimalWorld<T> where T : IContinentFactory, new()`，在建構函式中執行 `new T()`。在舊式泛型中，`new T()` 底層會透過 `Activator.CreateInstance` 產生呼叫開銷，且無法強制工廠本身為無狀態（Stateless）或傳遞建構參數。
+- **缺乏相依性注入（DI）整合**：現代 .NET 應用程式很少在 Client 內部直接 `new` 出工廠，而是透過 DI 容器或 C# 的 **Static Abstract Interface Members（靜態抽象介面成員）** 在編譯期完成靜態分派（Zero-allocation）。
+
+### C# 15 / .NET 11 優化重點
+
+- **Static Abstract Interface Members**：在 `IContinentFactory` 定義 `static abstract` 方法，完全不需實例化工廠物件（零記憶體配置），並在編譯期直接內聯（Inline）呼叫。
+- **`closed` 繼承階層（C# 15）**：將抽象產品標記為 `closed` 或使用 `record`，確保產品家族的型別安全。
+- **.NET 11 DI Keyed Services 實務對照**：在 ASP.NET Core / .NET 11 中，也可透過 `services.AddKeyedSingleton<IContinentFactory, Africa>("Africa")` 動態切換產品家族。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace AbstractFactory.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        // 編譯期靜態分派：無須 new Africa() 工廠實例，達成零額外配置 (Zero-allocation)
+        AnimalWorld.RunFoodChain<Africa>();
+        AnimalWorld.RunFoodChain<America>();
+    }
+}
+
+/// <summary>
+/// 利用 C# Static Abstract Interface Members 定義抽象工廠介面
+/// </summary>
+public interface IContinentFactory
+{
+    static abstract IHerbivore CreateHerbivore();
+    static abstract ICarnivore CreateCarnivore();
+}
+
+public sealed class Africa : IContinentFactory
+{
+    public static IHerbivore CreateHerbivore() => new Wildebeest();
+    public static ICarnivore CreateCarnivore() => new Lion();
+}
+
+public sealed class America : IContinentFactory
+{
+    public static IHerbivore CreateHerbivore() => new Bison();
+    public static ICarnivore CreateCarnivore() => new Wolf();
+}
+
+public interface IHerbivore { string Name => GetType().Name; }
+
+public interface ICarnivore
+{
+    void Eat(IHerbivore herbivore);
+}
+
+public sealed record Wildebeest : IHerbivore;
+public sealed record Bison : IHerbivore;
+
+public sealed record Lion : ICarnivore
+{
+    public void Eat(IHerbivore h) => WriteLine($"{nameof(Lion)} eats {h.Name}");
+}
+
+public sealed record Wolf : ICarnivore
+{
+    public void Eat(IHerbivore h) => WriteLine($"{nameof(Wolf)} eats {h.Name}");
+}
+
+/// <summary>
+/// Client 端直接透過泛型型別參數呼叫靜態工廠方法
+/// </summary>
+public static class AnimalWorld
+{
+    public static void RunFoodChain<TFactory>() where TFactory : IContinentFactory
+    {
+        var carnivore = TFactory.CreateCarnivore();
+        var herbivore = TFactory.CreateHerbivore();
+        carnivore.Eat(herbivore);
+    }
+}
 ```
 
 ---

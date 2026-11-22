@@ -10,10 +10,11 @@
 
 **Iterator** Design Pattern 提供一種方法，可以循序存取聚合（Aggregate）物件中的各個元素，而無須暴露其底層的表示方式（Underlying Representation）。
 
-**Iterator** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Iterator** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -531,6 +532,70 @@ Iterating over collection:
     Item 6
 
     Item 8
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **Dofactory `.NET Optimized` 已使用 `yield return`**：這點非常符合 C# 的習慣，因為 C# 編譯器會自動將 `yield return` 轉換為高效率的狀態機（State Machine）。
+- **可進一步現代化之處**：在 .NET 11 中，若走訪涉及非同步資料流（如資料庫查詢、AI Token 串流或分頁 API），C# 原生支援 **`IAsyncEnumerable<T>`（`await foreach`）**；若為同步集合，則可結合 C# 15 的 **Extension Indexers** 或集合運算式初始化。
+
+### C# 15 / .NET 11 優化重點
+
+- **集合運算式初始化（Collection Initializer / Collection Expressions）**：實作 `Add` 與 `IEnumerable<T>`，讓 `ItemCollection<T>` 可以直接用 `[new("Item 0"), ...]` 語法建立。
+- **同步 `yield return` 與非同步 `IAsyncEnumerable<T>` 概念對照**：保留零多餘配置的 `yield return` 步進過濾器。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Iterator.ModernNet11;
+
+using System.Collections;
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        // 直接使用集合運算式初始化自訂聚合物件
+        ItemCollection<Item> items =
+        [
+            new("Item 0"), new("Item 1"), new("Item 2"),
+            new("Item 3"), new("Item 4"), new("Item 5"),
+            new("Item 6"), new("Item 7"), new("Item 8")
+        ];
+
+        WriteLine("Iterate front to back (step = 2):");
+        foreach (var item in items.SkipStep(step: 2))
+        {
+            WriteLine(item.Name);
+        }
+    }
+}
+
+public readonly record struct Item(string Name);
+
+public sealed class ItemCollection<T> : IEnumerable<T>
+{
+    private readonly List<T> _items = [with(capacity: 16)];
+
+    public void Add(T item) => _items.Add(item);
+
+    public IEnumerable<T> SkipStep(int step = 1)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(step, 1);
+        for (int i = 0; i < _items.Count; i += step)
+        {
+            yield return _items[i];
+        }
+    }
+
+    public IEnumerator<T> GetEnumerator() => _items.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}
 ```
 
 ---

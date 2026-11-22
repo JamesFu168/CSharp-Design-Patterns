@@ -10,10 +10,11 @@
 
 給定一個語言，**Interpreter** Design Pattern 會定義其文法（Grammar）的表示方式，以及一個使用該表示方式來直譯（Interpret）該語言中句子的直譯器。
 
-**Interpreter** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Interpreter** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -486,6 +487,94 @@ public class OneExpression : Expression
 
 ```text
 MCMXXVIII = 1928
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **產生過多單一用途的子類別與大量字串配置**：Dofactory 為個、十、百、千位分別建立了 4 個衍生類別（`ThousandExpression` 等），但它們只是覆寫回傳常數字串的 5 個虛擬方法；而且在 `Interpret` 過程中不斷呼叫 `context.Input = context.Input.Substring(...)`，每次都配置新的字串。
+- **現代 .NET 11 優化**：將同構的文法規則整合為資料驅動的單一不可變 `RomanRule` `record`，並可搭配 `ReadOnlySpan<char>`（零字串切片配置）來剖析輸入。
+
+### C# 15 / .NET 11 優化重點
+
+- **資料驅動的 `readonly record struct` 文法規則**：消除 4 個重複的衍生類別，直接用 Primary Constructor 定義符號與倍率。
+- **`ReadOnlySpan<char>` 零配置剖析**：使用 `StartsWith` 與 Slice 語法 `input[2..]`，在整個直譯過程中**完全不配置任何中間子字串（Zero String Allocation）**！
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Interpreter.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        const string roman = "MCMXXVIII";
+        int result = RomanInterpreter.Interpret(roman);
+        WriteLine($"{roman} = {result}");
+    }
+}
+
+/// <summary>
+/// 資料驅動的 TerminalExpression：消除重複的衍生類別
+/// </summary>
+public readonly record struct RomanExpression(
+    string One, string Four, string Five, string Nine, int Multiplier)
+{
+    // 使用 ReadOnlySpan<char> 與範圍切片 [1..] / [2..]，達成零字串記憶體配置 (Zero-allocation)
+    public void Interpret(ref ReadOnlySpan<char> input, ref int output)
+    {
+        if (input.IsEmpty) return;
+
+        if (input.StartsWith(Nine))
+        {
+            output += 9 * Multiplier;
+            input = input[2..];
+        }
+        else if (input.StartsWith(Four))
+        {
+            output += 4 * Multiplier;
+            input = input[2..];
+        }
+        else if (input.StartsWith(Five))
+        {
+            output += 5 * Multiplier;
+            input = input[1..];
+        }
+
+        while (input.StartsWith(One))
+        {
+            output += 1 * Multiplier;
+            input = input[1..];
+        }
+    }
+}
+
+public static class RomanInterpreter
+{
+    private static readonly RomanExpression[] GrammarTree =
+    [
+        new("M", " ", " ", " ", 1000),
+        new("C", "CD", "D", "CM", 100),
+        new("X", "XL", "L", "XC", 10),
+        new("I", "IV", "V", "IX", 1)
+    ];
+
+    public static int Interpret(ReadOnlySpan<char> roman)
+    {
+        int total = 0;
+        foreach (ref readonly var exp in GrammarTree.AsSpan())
+        {
+            exp.Interpret(ref roman, ref total);
+        }
+        return total;
+    }
+}
 ```
 
 ---

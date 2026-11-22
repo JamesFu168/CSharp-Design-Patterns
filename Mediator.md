@@ -10,10 +10,11 @@
 
 **Mediator** Design Pattern 定義了一個物件，用來封裝一組物件之間的互動方式。Mediator 藉由避免物件之間明確地互相參考（Referring），促進了鬆散耦合（Loose Coupling），並讓你可以獨立地改變它們之間的互動。
 
-**Mediator** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Mediator** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -526,6 +527,108 @@ To a Beatle: Yoko to John: 'Hi John!'
     To a Beatle: Paul to John: 'Can't buy me love'
 
     To a non-Beatle: John to Yoko: 'My sweet love'
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **防禦性不足的字典存取**：Dofactory 在 `Chatroom.Send` 中直接寫 `participants[to]?.Receive(from, message);`，若 `to` 不在字典中，C# 的 `Dictionary` 索引子會直接拋出 `KeyNotFoundException`（後面的 `?.` 根本不會發揮作用）。應使用 `TryGetValue`。
+- **在現代 .NET 11 實務中的對照**：在大型 .NET 應用程式中，Mediator Pattern 最常體現為 **In-process Messaging（如 MediatR / Wolverine / `System.Threading.Channels`）**，將 Request/Command 的發送者與 Handler 徹底解耦。
+
+### C# 15 / .NET 11 優化重點
+
+- **修正 `Dictionary` 索引子潛在的 `KeyNotFoundException`**：改用 `TryGetValue` 安全路由訊息。
+- **`params ReadOnlySpan<Participant>`**：讓 `Register` 支援一次註冊多位參與者而無須配置陣列。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Mediator.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var chatroom = new Chatroom();
+
+        Participant george = new Beatle("George");
+        Participant paul = new Beatle("Paul");
+        Participant ringo = new Beatle("Ringo");
+        Participant john = new Beatle("John");
+        Participant yoko = new NonBeatle("Yoko");
+
+        // 支援 params ReadOnlySpan<Participant> 批次註冊
+        chatroom.Register(george, paul, ringo, john, yoko);
+
+        yoko.Send("John", "Hi John!");
+        paul.Send("Ringo", "All you need is love");
+        ringo.Send("George", "My sweet Lord");
+        paul.Send("John", "Can't buy me love");
+        john.Send("Yoko", "My sweet love");
+    }
+}
+
+public interface IChatroom
+{
+    void Register(params ReadOnlySpan<Participant> participants);
+    void Send(string from, string to, string message);
+}
+
+public sealed class Chatroom : IChatroom
+{
+    private readonly Dictionary<string, Participant> _participants = new(StringComparer.OrdinalIgnoreCase);
+
+    public void Register(params ReadOnlySpan<Participant> participants)
+    {
+        foreach (var participant in participants)
+        {
+            _participants.TryAdd(participant.Name, participant);
+            participant.Chatroom = this;
+        }
+    }
+
+    public void Send(string from, string to, string message)
+    {
+        if (_participants.TryGetValue(to, out var recipient))
+        {
+            recipient.Receive(from, message);
+        }
+    }
+}
+
+public abstract class Participant(string name)
+{
+    public string Name => name;
+    public IChatroom? Chatroom { get; set; }
+
+    public void Send(string to, string message) => Chatroom?.Send(Name, to, message);
+
+    public virtual void Receive(string from, string message) =>
+        WriteLine($"{from} to {Name}: '{message}'");
+}
+
+public sealed class Beatle(string name) : Participant(name)
+{
+    public override void Receive(string from, string message)
+    {
+        Write("To a Beatle: ");
+        base.Receive(from, message);
+    }
+}
+
+public sealed class NonBeatle(string name) : Participant(name)
+{
+    public override void Receive(string from, string message)
+    {
+        Write("To a non-Beatle: ");
+        base.Receive(from, message);
+    }
+}
 ```
 
 ---

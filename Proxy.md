@@ -10,10 +10,11 @@
 
 **Proxy** Design Pattern 為另一個物件提供一個替身（Surrogate）或佔位符（Placeholder），以控制對該物件的存取。
 
-**Proxy** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Proxy** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -320,6 +321,69 @@ public class MathProxy : IMath
     4 * 2 = 8
 
     4 / 2 = 2
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **過早實例化（Eager Initialization）**：Dofactory 的 `MathProxy` 在宣告時就直接 `private readonly Math math = new();`。在實務上，**虛擬代理（Virtual Proxy）** 的核心價值之一就是「延遲載入（Lazy Initialization）」——直到真正呼叫方法時才建立昂貴的 `RealSubject`，同時可加上權限檢查（Protection Proxy）或結果快取（Caching Proxy）。
+
+### C# 15 / .NET 11 優化重點
+
+- **`Lazy<Math>` 延遲實例化**：展示 Virtual Proxy 如何推遲高成本物件的建立。
+- **在 .NET 11 實務中的對照**：在現代 .NET 中，動態 Proxy 常透過 **Source Generators**（編譯期自動產生 Proxy，如 `HttpClient` Typed Clients、gRPC Client 或 `[LoggerMessage]`）實作，避免執行期 Reflection Emit 的開銷。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Proxy.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        IMath proxy = new MathProxy();
+
+        WriteLine($"4 + 2 = {proxy.Add(4, 2)}");
+        WriteLine($"4 - 2 = {proxy.Sub(4, 2)}");
+        WriteLine($"4 * 2 = {proxy.Mul(4, 2)}");
+        WriteLine($"4 / 2 = {proxy.Div(4, 2)}");
+    }
+}
+
+public interface IMath
+{
+    double Add(double x, double y);
+    double Sub(double x, double y);
+    double Mul(double x, double y);
+    double Div(double x, double y);
+}
+
+public sealed class Math : IMath
+{
+    public double Add(double x, double y) => x + y;
+    public double Sub(double x, double y) => x - y;
+    public double Mul(double x, double y) => x * y;
+    public double Div(double x, double y) => x / y;
+}
+
+/// <summary>
+/// 結合 Lazy<T> 延遲初始化的 Virtual Proxy
+/// </summary>
+public sealed class MathProxy : IMath
+{
+    private readonly Lazy<Math> _math = new(() => new Math());
+
+    public double Add(double x, double y) => _math.Value.Add(x, y);
+    public double Sub(double x, double y) => _math.Value.Sub(x, y);
+    public double Mul(double x, double y) => _math.Value.Mul(x, y);
+    public double Div(double x, double y) => _math.Value.Div(x, y);
+}
 ```
 
 ---

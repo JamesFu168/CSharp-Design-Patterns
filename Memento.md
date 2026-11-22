@@ -10,10 +10,11 @@
 
 **Memento** Design Pattern 在不違反封裝（Encapsulation）的前提下，捕捉並將物件的內部狀態外部化（Externalizes），以便該物件稍後可以還原（Restored）到此狀態。
 
-**Memento** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Memento** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -526,6 +527,118 @@ Name:   Noel van Halen
     Phone:  (412) 256-0990
 
     Budget: 25000
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **使用 `JsonSerializer` 儲存快照的雙重浪費與封裝破綻**：Dofactory 的 `.NET Optimized` 用 `JsonSerializer.Serialize(this)` 把整個 `SalesProspect` 轉成 JSON 字串，而且還把 `Memento.State` 設為 `public string? State { get; set; }`，這讓外部 `Caretaker` 可以隨意竄改 JSON 字串，反而違反了 GoF Memento「防止 Originator 以外的物件存取內部狀態」的定義！
+- **C# 14/15 `field` 關鍵字與不可變快照**：利用 C# 的 **`field` 關鍵字（Field-backed Properties）**，我們不再需要手動宣告 `_name`、`_phone`、`_budget` 三個私有欄位；而 `Memento` 則可透過內部不可變的 `record` 快照來實作，既沒有 JSON 序列化開銷，又真正保護了封裝性。
+
+### C# 15 / .NET 11 優化重點
+
+- **C# 14/15 `field` 關鍵字**：在 `Name`、`Phone`、`Budget` 的 `set` 存取子中直接使用 `field = value;`，省去所有冗餘的 `private` backing fields！
+- **真正的窄介面 / 寬介面封裝**：`Memento` 內部使用 `private` / `internal` 不可變狀態，外部 `ProspectMemory`（Caretaker）只能保管而無法窺探或修改狀態，且快照建立達到零序列化開銷。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Memento.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var s = new SalesProspect
+        {
+            Name = "Joel van Halen",
+            Phone = "(412) 256-0990",
+            Budget = 25_000.0
+        };
+
+        // 儲存內部狀態快照（無須透過慢速的 JSON 序列化）
+        var memory = new ProspectMemory(s.SaveMemento());
+
+        // 修改 Originator 狀態
+        s.Name = "Leo Welch";
+        s.Phone = "(310) 209-7111";
+        s.Budget = 1_000_000.0;
+
+        // 還原內部狀態
+        s.RestoreMemento(memory.Memento);
+    }
+}
+
+/// <summary>
+/// Originator：利用 C# 14/15 'field' 關鍵字消除手動宣告的 private backing fields
+/// </summary>
+public sealed class SalesProspect
+{
+    public required string Name
+    {
+        get;
+        set
+        {
+            field = value;
+            WriteLine($"Name:   {field}");
+        }
+    }
+
+    public required string Phone
+    {
+        get;
+        set
+        {
+            field = value;
+            WriteLine($"Phone:  {field}");
+        }
+    }
+
+    public required double Budget
+    {
+        get;
+        set
+        {
+            field = value;
+            WriteLine($"Budget: {field}");
+        }
+    }
+
+    public Memento SaveMemento()
+    {
+        WriteLine("\nSaving state --\n");
+        return new Memento(Name, Phone, Budget);
+    }
+
+    public void RestoreMemento(Memento memento)
+    {
+        WriteLine("\nRestoring state --\n");
+        (Name, Phone, Budget) = (memento.Name, memento.Phone, memento.Budget);
+    }
+}
+
+/// <summary>
+/// Memento：對 Caretaker 隱藏修改能力，僅允許 Originator 讀取不可變快照
+/// </summary>
+public sealed class Memento
+{
+    internal string Name { get; }
+    internal string Phone { get; }
+    internal double Budget { get; }
+
+    internal Memento(string name, string phone, double budget) =>
+        (Name, Phone, Budget) = (name, phone, budget);
+}
+
+/// <summary>
+/// Caretaker：僅負責保管 Memento
+/// </summary>
+public sealed record ProspectMemory(Memento Memento);
 ```
 
 ---

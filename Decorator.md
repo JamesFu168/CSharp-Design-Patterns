@@ -10,10 +10,11 @@
 
 **Decorator** Design Pattern 可以動態地將額外的職責（Responsibilities）附加到物件上。對於擴充功能而言，此 Pattern 提供了比繼承子類別（Subclassing）更具彈性的替代方案。
 
-**Decorator** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Decorator** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -583,6 +584,116 @@ Book ------
     borrower: Customer #1
 
     borrower: Customer #2
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **奇妙的遞迴泛型與靜態狀態錯誤（Critical Bug）**：仔細看 Dofactory 的 `.NET Optimized` 程式碼，它在抽象類別 `LibraryItem<T>` 中宣告了 `public static int NumCopies { get; set; }`！這意味著**所有同型別的書籍或影片會共享同一個 `NumCopies` 靜態變數**，只要借出一本書，全圖書館所有書的庫存都會一起減少！這是原版程式碼中非常嚴重的設計瑕疵。
+- **介面組合優於類別繼承**：現代 .NET（如 `Stream`、`IDistributedCache`、ASP.NET Core Middleware）實作 Decorator 時，應該共用一個簡潔的 `ILibraryItem` 介面，並且每個實例各自持有自己的 `NumCopies` 狀態。
+
+### C# 15 / .NET 11 優化重點
+
+- **修正原版的 `static NumCopies` 狀態污染 Bug**：將 `NumCopies` 改為實例屬性（Instance Property）。
+- **C# 15 Collection Expression Arguments (`with(capacity: ...)`)**：在 `Borrowable` 裝飾者中高效管理借閱者清單。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Decorator.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var book = new Book("Worley", "Inside ASP.NET", NumCopies: 10);
+        book.Display();
+
+        var video = new Video("Spielberg", "Jaws", NumCopies: 23, PlayTime: 92);
+        video.Display();
+
+        WriteLine("\nMaking video borrowable:");
+        var borrowableVideo = new Borrowable(video);
+        borrowableVideo.BorrowItem("Customer #1");
+        borrowableVideo.BorrowItem("Customer #2");
+        borrowableVideo.Display();
+    }
+}
+
+public interface ILibraryItem
+{
+    int NumCopies { get; set; }
+    void Display();
+}
+
+public sealed class Book(string author, string title, int NumCopies) : ILibraryItem
+{
+    public int NumCopies { get; set; } = NumCopies;
+
+    public void Display()
+    {
+        WriteLine("\nBook ------ ");
+        WriteLine($" Author: {author}");
+        WriteLine($" Title: {title}");
+        WriteLine($" # Copies: {NumCopies}");
+    }
+}
+
+public sealed class Video(string director, string title, int NumCopies, int PlayTime) : ILibraryItem
+{
+    public int NumCopies { get; set; } = NumCopies;
+
+    public void Display()
+    {
+        WriteLine("\nVideo ----- ");
+        WriteLine($" Director: {director}");
+        WriteLine($" Title: {title}");
+        WriteLine($" # Copies: {NumCopies}");
+        WriteLine($" Playtime: {PlayTime}\n");
+    }
+}
+
+public abstract class LibraryDecorator(ILibraryItem inner) : ILibraryItem
+{
+    public int NumCopies
+    {
+        get => inner.NumCopies;
+        set => inner.NumCopies = value;
+    }
+
+    public virtual void Display() => inner.Display();
+}
+
+public sealed class Borrowable(ILibraryItem inner) : LibraryDecorator(inner)
+{
+    private readonly List<string> _borrowers = [with(capacity: 4)];
+
+    public void BorrowItem(string name)
+    {
+        _borrowers.Add(name);
+        NumCopies--;
+    }
+
+    public void ReturnItem(string name)
+    {
+        _borrowers.Remove(name);
+        NumCopies++;
+    }
+
+    public override void Display()
+    {
+        base.Display();
+        foreach (var borrower in _borrowers)
+        {
+            WriteLine($" borrower: {borrower}");
+        }
+    }
+}
 ```
 
 ---

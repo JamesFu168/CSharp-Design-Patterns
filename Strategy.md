@@ -10,10 +10,11 @@
 
 **Strategy** Design Pattern 定義了一系列的演算法（Algorithms），將每一個演算法封裝起來，並使它們可以互相替換（Interchangeable）。此 Pattern 讓演算法可以獨立於使用它的用戶端（Clients）而變化。
 
-**Strategy** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Strategy** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -545,6 +546,89 @@ QuickSorted list
      Sandra
 
      Vivek
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **為了單一方法建立過多樣板類別**：在 C# 中，如果一個 Strategy 介面（如 `ISortStrategy`）只有唯一一個方法 `void Sort(List<Student> list)`，除了使用傳統介面實作外，現代 C# 更常支援直接傳入**高階函式 / 委派（`Action<List<Student>>` 或 `Comparison<T>`）**，或是將無狀態的策略類別設為 Singleton 實例以避免重複 `new`。
+
+### C# 15 / .NET 11 優化重點
+
+- **同時支援 `ISortStrategy` 介面與 Lambda / Method Group 委派**：展現 C# 函數式與物件導向融合的彈性。
+- **C# 15 Collection Expression Arguments (`with(capacity: ...)`)**：在建立 `SortedList` 時預先配置容量。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Strategy.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        SortedList students =
+        [
+            new("Samual", "154-33-2009"),
+            new("Jimmy", "487-43-1665"),
+            new("Sandra", "655-00-2944"),
+            new("Vivek", "133-98-8399"),
+            new("Anna", "760-94-9844")
+        ];
+
+        // 方式 1：使用傳統 Strategy 實例
+        students.SortStrategy = QuickSort.Instance;
+        students.SortStudents();
+
+        // 方式 2：在現代 C# 中，單一方法的 Strategy 也可以直接傳入 Lambda 或靜態方法委派
+        students.SortWith(list =>
+        {
+            list.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+            WriteLine("LINQ / BCL Array.Sort Strategy");
+        });
+    }
+}
+
+public readonly record struct Student(string Name, string Ssn);
+
+public interface ISortStrategy
+{
+    void Sort(List<Student> list);
+}
+
+public sealed class QuickSort : ISortStrategy
+{
+    public static readonly QuickSort Instance = new();
+
+    public void Sort(List<Student> list)
+    {
+        list.Sort((x, y) => string.CompareOrdinal(x.Name, y.Name));
+        WriteLine("QuickSorted list");
+    }
+}
+
+public sealed class SortedList : List<Student>
+{
+    public ISortStrategy? SortStrategy { get; set; }
+
+    public void SortStudents() => SortWith( list => SortStrategy?.Sort(list));
+
+    // 支援直接傳入 Action<List<Student>> 委派策略
+    public void SortWith(Action<List<Student>> strategy)
+    {
+        strategy(this);
+        foreach (var student in this)
+        {
+            WriteLine($" {student.Name}: {student.Ssn}");
+        }
+        WriteLine();
+    }
+}
 ```
 
 ---

@@ -10,10 +10,11 @@
 
 **Flyweight** Design Pattern 使用共享（Sharing）技術來有效率地支援大量的細粒度（Fine-grained）物件。
 
-**Flyweight** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Flyweight** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -508,6 +509,83 @@ A (pointsize 11)
     Z (pointsize 17)
 
     B (pointsize 18)
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **把外部狀態（Extrinsic State）存在 Flyweight 內部**：Dofactory 的 `Character` 類別把 `pointSize` 宣告為欄位 `protected int pointSize;`，並在 `Display(int pointSize)` 時修改 `this.pointSize = pointSize;`！這違反了 Flyweight Pattern 的核心原則——**共享物件必須是不可變的（Immutable）或僅包含內部狀態（Intrinsic State）**，否則在多執行緒環境下共享同一個 `CharacterA` 實例時會發生 Race Condition。
+- **每次查詢都走 `switch` 與重複配置**：可利用 `CollectionsMarshal.GetValueRefOrAddDefault` 或 `ConcurrentDictionary` 來安全地快取並共享不可變的 Flyweight 實例。
+
+### C# 15 / .NET 11 優化重點
+
+- **真正純粹的 Intrinsic / Extrinsic 分離**：將 `Character` 定義為不可變的 `record`，`pointSize`（外部狀態）僅作為 `Display(int pointSize)` 的參數傳入，不污染共享實例，徹底保證執行緒安全！
+- **C# 15 `closed` 階層與高效率快取**：使用 `Dictionary.TryGetValue` 搭配 C# `switch` 運算式建立快取。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Flyweight.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        const string document = "AAZZBBZB";
+        var factory = new CharacterFactory();
+        int pointSize = 10;
+
+        foreach (char c in document)
+        {
+            pointSize++;
+            var character = factory[c];
+            character.Display(pointSize);
+        }
+    }
+}
+
+/// <summary>
+/// 不可變的 Flyweight 基底型別：僅保存內部狀態 (Intrinsic State: Symbol, Width, Height)
+/// </summary>
+public closed abstract record Character(char Symbol, int Width, int Height, int Ascent, int Descent)
+{
+    // pointSize 為外部狀態 (Extrinsic State)，由呼叫端傳入而不儲存在共享實例中，確保 Thread-Safe
+    public void Display(int pointSize) =>
+        WriteLine($"{Symbol} (pointsize {pointSize})");
+}
+
+public sealed record CharacterA() : Character('A', 100, 120, 70, 0);
+public sealed record CharacterB() : Character('B', 100, 120, 70, 0);
+public sealed record CharacterZ() : Character('Z', 100, 120, 70, 0);
+
+public sealed class CharacterFactory
+{
+    private readonly Dictionary<char, Character> _characters = new(capacity: 26);
+
+    public Character this[char key]
+    {
+        get
+        {
+            if (!_characters.TryGetValue(key, out var character))
+            {
+                character = key switch
+                {
+                    'A' => new CharacterA(),
+                    'B' => new CharacterB(),
+                    'Z' => new CharacterZ(),
+                    _ => throw new ArgumentOutOfRangeException(nameof(key))
+                };
+                _characters[key] = character;
+            }
+            return character;
+        }
+    }
+}
 ```
 
 ---

@@ -10,10 +10,11 @@
 
 **Command** Design Pattern 將請求封裝為一個物件，從而讓你可以用不同的請求來參數化（Parameterize）用戶端、將請求排入佇列（Queue）或記錄日誌（Log），以及支援可復原（Undoable）的操作。
 
-**Command** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Command** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -586,6 +587,124 @@ Current value = 100 (following + 100)
     Current value =  50 (following - 50)
 
     Current value = 500 (following * 10)
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **可變的 Command 物件**：Dofactory 的 `CalculatorCommand` 是具有 `Operator` 與 `Operand` `set` 屬性的類別。在實務上（如 CQRS 架構、Event Sourcing 或 Undo/Redo 佇列），**Command 應該是完全不可變（Immutable）的資料載體或閉包**。
+
+### C# 15 / .NET 11 優化重點
+
+- **`readonly record struct` 實作 `ICommand`**：將 `CalculatorCommand` 改為 `readonly record struct`，使命令本身完全不可變且減少 Heap 記憶體配置。
+- **C# `switch` 運算式**：將 `Calculator.Operation` 的傳統 `switch` 陳述式改為精煉的 `switch` 運算式。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Command.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var user = new User();
+
+        user.Compute('+', 100);
+        user.Compute('-', 50);
+        user.Compute('*', 10);
+        user.Compute('/', 2);
+
+        user.Undo(4);
+        user.Redo(3);
+    }
+}
+
+public interface ICommand
+{
+    void Execute();
+    void UnExecute();
+}
+
+/// <summary>
+/// 不可變的 Command：使用 readonly record struct 封裝命令參數
+/// </summary>
+public readonly record struct CalculatorCommand(Calculator Calculator, char Operator, int Operand) : ICommand
+{
+    public void Execute() => Calculator.Operation(Operator, Operand);
+
+    public void UnExecute() => Calculator.Operation(Undo(Operator), Operand);
+
+    private static char Undo(char @operator) => @operator switch
+    {
+        '+' => '-',
+        '-' => '+',
+        '*' => '/',
+        '/' => '*',
+        _ => throw new ArgumentException("Invalid operator", nameof(@operator))
+    };
+}
+
+public sealed class Calculator
+{
+    private int _current;
+
+    public void Operation(char @operator, int operand)
+    {
+        _current = @operator switch
+        {
+            '+' => _current + operand,
+            '-' => _current - operand,
+            '*' => _current * operand,
+            '/' => _current / operand,
+            _ => _current
+        };
+        WriteLine($"Current value = {_current,3} (following {@operator} {operand})");
+    }
+}
+
+public sealed class User
+{
+    private readonly Calculator _calculator = new();
+    private readonly List<ICommand> _commands = [with(capacity: 8)];
+    private int _current;
+
+    public void Compute(char @operator, int operand)
+    {
+        ICommand command = new CalculatorCommand(_calculator, @operator, operand);
+        command.Execute();
+
+        if (_current < _commands.Count)
+        {
+            _commands.RemoveRange(_current, _commands.Count - _current);
+        }
+        _commands.Add(command);
+        _current++;
+    }
+
+    public void Redo(int levels)
+    {
+        WriteLine($"\n---- Redo {levels} levels ");
+        for (int i = 0; i < levels && _current < _commands.Count; i++)
+        {
+            _commands[_current++].Execute();
+        }
+    }
+
+    public void Undo(int levels)
+    {
+        WriteLine($"\n---- Undo {levels} levels ");
+        for (int i = 0; i < levels && _current > 0; i++)
+        {
+            _commands[--_current].UnExecute();
+        }
+    }
+}
 ```
 
 ---

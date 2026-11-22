@@ -10,10 +10,11 @@
 
 **Composite** Design Pattern 將物件組合成樹狀結構（Tree Structures），以表示「部分－整體」（Part-Whole）的階層關係。此 Pattern 讓用戶端（Clients）可以用一致的方式來對待個別物件與物件的組合（Compositions）。
 
-**Composite** Design Pattern 的 C# 程式碼範例提供以下 3 種形式：
+**Composite** Design Pattern 的 C# 程式碼範例除了提供 Dofactory 原版的 3 種形式外，亦額外補充針對 **.NET 11 / C# 15** 的現代化實務優化版本：
 - [結構化程式碼 (Structural code)](#structural-code-in-c-結構化程式碼)
 - [真實世界程式碼 (Real-world code)](#real-world-code-in-c-真實世界程式碼)
 - [.NET 最佳化程式碼 (.NET optimized code)](#net-optimized-code-in-c-net-最佳化程式碼)
+- [🚀 .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)](#net-11--c-15-現代化實務優化-modern-net-11--c-15)
 
 ---
 
@@ -481,6 +482,77 @@ public class Shape(string name) : IComparable<Shape>
     ----- Black Circle
 
     ----- White Circle
+```
+
+---
+
+## .NET 11 / C# 15 現代化實務優化 (Modern .NET 11 & C# 15)
+
+### 原版範例的限制與盲點
+
+- **過度的 `IComparable<T>` 限制**：Dofactory 在 `TreeNode<T>` 上強制加上了 `where T : IComparable<T>`，導致每個節點都必須實作 `CompareTo`，但實際上樹狀結構更常需要的是高效的子節點批次新增與搜尋。
+- **批次新增效能**：在建立大型樹狀結構時，逐一呼叫 `.Add()` 不如支援 **`params ReadOnlySpan<T>`**（C# 13+ / .NET 11）來得直覺且零額外陣列配置。
+
+### C# 15 / .NET 11 優化重點
+
+- **`params ReadOnlySpan<TreeNode<T>>`**：支援在單一呼叫中傳入多個子樹或葉節點，編譯器自動在 Stack 上配置 `Span`，無須配置暫存陣列。
+- **`record` 值相等性**：使用 `readonly record struct Shape(string Name)` 自動獲得相等比較，無須手刻 `IComparable<Shape>`。
+
+### 現代化 C# 15 / .NET 11 程式碼範例
+
+```csharp
+namespace Composite.ModernNet11;
+
+using static System.Console;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var root = new TreeNode<Shape>(new("Picture"))
+            .AddChildren(
+                new(new("Red Line")),
+                new(new("Blue Circle")),
+                new(new("Green Box")),
+                new TreeNode<Shape>(new("Two Circles"))
+                    .AddChildren(
+                        new(new("Black Circle")),
+                        new(new("White Circle"))
+                    )
+            );
+
+        TreeNode<Shape>.Display(root, 1);
+    }
+}
+
+public readonly record struct Shape(string Name)
+{
+    public override string ToString() => Name;
+}
+
+public sealed class TreeNode<T>(T value)
+{
+    private readonly List<TreeNode<T>> _children = [];
+
+    public T Value => value;
+    public IReadOnlyList<TreeNode<T>> Children => _children;
+
+    // 利用 params ReadOnlySpan<T> 支援零陣列配置的批次子節點建構
+    public TreeNode<T> AddChildren(params ReadOnlySpan<TreeNode<T>> nodes)
+    {
+        _children.AddRange(nodes);
+        return this;
+    }
+
+    public static void Display(TreeNode<T> node, int indentation)
+    {
+        WriteLine($"{new string('-', indentation)} {node.Value}");
+        foreach (var child in node.Children)
+        {
+            Display(child, indentation + 1);
+        }
+    }
+}
 ```
 
 ---
